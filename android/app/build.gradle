@@ -105,6 +105,11 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+    packagingOptions {
+        resources {
+            excludes += ["META-INF/LICENSE", "META-INF/LICENSE.txt", "META-INF/NOTICE", "META-INF/NOTICE.txt", "META-INF/DEPENDENCIES"]
+        }
+    }
 }
 
 dependencies {
@@ -116,4 +121,17 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    // Archive support for the ZIP Manager feature (native/ArchiveModule.kt)
+    implementation("net.lingala.zip4j:zip4j:2.11.5")       // ZIP create/extract, AES/ZipCrypto password support
+    implementation("org.apache.commons:commons-compress:1.26.2") // 7z create/extract
+    implementation("org.tukaani:xz:1.9")                    // LZMA2 codec required by commons-compress for 7z
+    implementation("com.github.junrar:junrar:7.5.5")        // RAR4/RAR5 extraction (RAR creation is not supported by any open license)
 }
+
+// Bundles react-native-vector-icons' .ttf files into android/app/src/main/assets/fonts.
+// Autolinking only wires up the native module code — font assets need this explicit include,
+// otherwise every MaterialCommunityIcons glyph renders as a missing-character box (tofu).
+apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
