@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Appbar, Text } from 'react-native-paper';
 import { FlashList } from '@shopify/flash-list';
@@ -9,12 +9,17 @@ import { CategoryService } from '@services/CategoryService';
 import { RecentFilesService } from '@services/RecentFilesService';
 import { FileListItem } from '@components/file/FileListItem';
 import { FileGridItem } from '@components/file/FileGridItem';
+import { SelectionBar } from '@components/file/SelectionBar';
 import { EmptyState } from '@components/common/EmptyState';
 import { useActionSheetStore } from '@store/actionSheetStore';
 import { useFileBrowserStore } from '@store/fileBrowserStore';
+import { useConfirmDialogStore } from '@store/confirmDialogStore';
+import { useStorageStore } from '@store/storageStore';
 import { categoryCacheKey, getCachedCategoryEntries, setCachedCategoryEntries } from '@store/categoryCacheStore';
 import { FileEntry } from '@app-types/file';
 import { FileService } from '@services/FileService';
+import { FileOperationsService } from '@services/FileOperationsService';
+import { ShareService } from '@services/ShareService';
 import { CATEGORY_LABELS } from '@utils/fileCategory';
 import { openFilePreview } from '@utils/openFilePreview';
 import { useAppTheme } from '@theme/ThemeProvider';
@@ -36,7 +41,22 @@ export function CategoryListScreen() {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const refreshToken = useFileBrowserStore((s) => s.refreshToken);
 
+  const selectionMode = useFileBrowserStore((s) => s.selectionMode);
+  const selectedPaths = useFileBrowserStore((s) => s.selectedPaths);
+  const enterSelectionMode = useFileBrowserStore((s) => s.enterSelectionMode);
+  const exitSelectionMode = useFileBrowserStore((s) => s.exitSelectionMode);
+  const toggleSelected = useFileBrowserStore((s) => s.toggleSelected);
+  const selectAll = useFileBrowserStore((s) => s.selectAll);
+  const setClipboard = useFileBrowserStore((s) => s.setClipboard);
+  const triggerRefresh = useFileBrowserStore((s) => s.triggerRefresh);
+  const primaryVolume = useStorageStore((s) => s.primaryVolume);
+
   const numColumns = Math.max(2, Math.floor(width / 130));
+
+  const selectedEntries = useMemo(
+    () => entries.filter((e) => selectedPaths.has(e.path)),
+    [entries, selectedPaths],
+  );
 
   // showSpinner: only block the UI when there's nothing cached to show yet. Otherwise the
   // already-cached list stays on screen while a fresh scan runs quietly underneath it.
@@ -57,6 +77,11 @@ export function CategoryListScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, rootPath, refreshToken]);
 
+  useEffect(() => {
+    return () => exitSelectionMode();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await load(false);
@@ -64,40 +89,74 @@ export function CategoryListScreen() {
   };
 
   const handlePress = (entry: FileEntry) => {
+    if (selectionMode) {
+      toggleSelected(entry.path);
+      return;
+    }
     RecentFilesService.record(entry.path, entry.name);
     openFilePreview(entry.path, entry.category);
+  };
+
+  const handleLongPress = (entry: FileEntry) => {
+    if (!selectionMode) enterSelectionMode(entry.path);
+    else toggleSelected(entry.path);
+  };
+
+  const handleBulkDelete = () => {
+    useConfirmDialogStore.getState().open({
+      title: 'Move to Recycle Bin',
+      message: `${selectedEntries.length} item(s) will be moved to the Recycle Bin.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        const root = primaryVolume?.path ?? rootPath;
+        await FileOperationsService.moveToTrash(selectedEntries, root);
+        exitSelectionMode();
+        triggerRefresh();
+      },
+    });
   };
 
   const renderItem = ({ item }: { item: FileEntry }) =>
     viewMode === 'list' ? (
       <FileListItem
         entry={item}
-        selected={false}
-        selectionMode={false}
+        selected={selectedPaths.has(item.path)}
+        selectionMode={selectionMode}
         onPress={handlePress}
-        onLongPress={() => {}}
+        onLongPress={handleLongPress}
         onMorePress={(entry) => useActionSheetStore.getState().open(entry)}
       />
     ) : (
       <FileGridItem
         entry={item}
-        selected={false}
-        selectionMode={false}
+        selected={selectedPaths.has(item.path)}
+        selectionMode={selectionMode}
         columnWidth={width / numColumns - 12}
         onPress={handlePress}
-        onLongPress={() => useActionSheetStore.getState().open(item)}
+        onLongPress={handleLongPress}
       />
     );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Appbar.Header elevated>
-        <Appbar.BackAction onPress={() => navigation.goBack()} />
-        <Appbar.Content title={CATEGORY_LABELS[category]} subtitle={loading ? undefined : `${entries.length} items`} />
-        <Appbar.Action
-          icon={viewMode === 'list' ? 'view-grid-outline' : 'view-list-outline'}
-          onPress={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')}
-        />
+        {selectionMode ? (
+          <>
+            <Appbar.Action icon="close" onPress={exitSelectionMode} />
+            <Appbar.Content title={`${selectedPaths.size} selected`} />
+            <Appbar.Action icon="select-all" onPress={() => selectAll(entries.map((e) => e.path))} />
+          </>
+        ) : (
+          <>
+            <Appbar.BackAction onPress={() => navigation.goBack()} />
+            <Appbar.Content title={CATEGORY_LABELS[category]} subtitle={loading ? undefined : `${entries.length} items`} />
+            <Appbar.Action
+              icon={viewMode === 'list' ? 'view-grid-outline' : 'view-list-outline'}
+              onPress={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')}
+            />
+          </>
+        )}
       </Appbar.Header>
 
       {loading ? (
@@ -110,12 +169,24 @@ export function CategoryListScreen() {
         <FlashList
           key={viewMode}
           data={entries}
+          extraData={selectedPaths}
           renderItem={renderItem}
           keyExtractor={(item) => item.path}
           numColumns={viewMode === 'grid' ? numColumns : 1}
           estimatedItemSize={viewMode === 'list' ? 64 : 130}
-          contentContainerStyle={{ paddingBottom: 24 }}
+          contentContainerStyle={{ paddingBottom: selectionMode ? 96 : 24 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[theme.colors.primary]} />}
+        />
+      )}
+
+      {selectionMode && (
+        <SelectionBar
+          actions={[
+            { icon: 'content-copy', label: 'Copy', onPress: () => { setClipboard({ paths: selectedEntries.map((e) => e.path), mode: 'copy' }); exitSelectionMode(); } },
+            { icon: 'content-cut', label: 'Move', onPress: () => { setClipboard({ paths: selectedEntries.map((e) => e.path), mode: 'cut' }); exitSelectionMode(); } },
+            { icon: 'share-variant-outline', label: 'Share', onPress: () => ShareService.shareFiles(selectedEntries.map((e) => e.path)) },
+            { icon: 'trash-can-outline', label: 'Delete', onPress: handleBulkDelete, destructive: true },
+          ]}
         />
       )}
     </View>

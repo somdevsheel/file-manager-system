@@ -4,7 +4,6 @@ import { Appbar, FAB, Menu, Text, Portal } from 'react-native-paper';
 import { FlashList } from '@shopify/flash-list';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { RootStackParamList } from '@navigation/types';
 import { useDirectoryListing } from '@hooks/useDirectoryListing';
 import { useFileBrowserStore } from '@store/fileBrowserStore';
@@ -15,6 +14,7 @@ import { useConfirmDialogStore } from '@store/confirmDialogStore';
 import { useStorageStore } from '@store/storageStore';
 import { FileListItem } from '@components/file/FileListItem';
 import { FileGridItem } from '@components/file/FileGridItem';
+import { SelectionBar } from '@components/file/SelectionBar';
 import { EmptyState } from '@components/common/EmptyState';
 import { FileEntry, SortField } from '@app-types/file';
 import { FileService } from '@services/FileService';
@@ -278,12 +278,14 @@ export function BrowserScreen({ path, title, isRoot }: Props) {
       )}
 
       {selectionMode ? (
-        <View style={[styles.selectionBar, { backgroundColor: theme.colors.elevation.level3 }]}>
-          <SelectionAction icon="content-copy" label="Copy" onPress={() => { setClipboard({ paths: selectedEntries.map((e) => e.path), mode: 'copy' }); exitSelectionMode(); }} />
-          <SelectionAction icon="content-cut" label="Move" onPress={() => { setClipboard({ paths: selectedEntries.map((e) => e.path), mode: 'cut' }); exitSelectionMode(); }} />
-          <SelectionAction icon="share-variant-outline" label="Share" onPress={() => ShareService.shareFiles(selectedEntries.map((e) => e.path))} />
-          <SelectionAction icon="trash-can-outline" label="Delete" onPress={handleBulkDelete} destructive />
-        </View>
+        <SelectionBar
+          actions={[
+            { icon: 'content-copy', label: 'Copy', onPress: () => { setClipboard({ paths: selectedEntries.map((e) => e.path), mode: 'copy' }); exitSelectionMode(); } },
+            { icon: 'content-cut', label: 'Move', onPress: () => { setClipboard({ paths: selectedEntries.map((e) => e.path), mode: 'cut' }); exitSelectionMode(); } },
+            { icon: 'share-variant-outline', label: 'Share', onPress: () => ShareService.shareFiles(selectedEntries.map((e) => e.path)) },
+            { icon: 'trash-can-outline', label: 'Delete', onPress: handleBulkDelete, destructive: true },
+          ]}
+        />
       ) : clipboard ? (
         <View style={[styles.pasteBar, { backgroundColor: theme.colors.elevation.level3 }]}>
           <Text style={{ color: theme.colors.onSurface, flex: 1 }}>
@@ -311,46 +313,10 @@ export function BrowserScreen({ path, title, isRoot }: Props) {
   );
 }
 
-function SelectionAction({
-  icon,
-  label,
-  onPress,
-  destructive,
-}: {
-  icon: string;
-  label: string;
-  onPress: () => void;
-  destructive?: boolean;
-}) {
-  const theme = useAppTheme();
-  return (
-    <View style={styles.selectionAction} onTouchEnd={onPress}>
-      <MaterialCommunityIcons name={icon} size={22} color={destructive ? theme.colors.error : theme.colors.onSurface} />
-      <Text variant="labelSmall" style={{ color: destructive ? theme.colors.error : theme.colors.onSurface, marginTop: 2 }}>
-        {label}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   fab: { position: 'absolute', right: 8, bottom: 8 },
-  selectionBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    paddingVertical: 10,
-    paddingBottom: 18,
-    elevation: 8,
-  },
-  selectionAction: {
-    flex: 1,
-    alignItems: 'center',
-  },
   pasteBar: {
     position: 'absolute',
     left: 12,
