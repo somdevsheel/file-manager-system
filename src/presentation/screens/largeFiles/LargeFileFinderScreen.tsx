@@ -56,7 +56,12 @@ export function LargeFileFinderScreen() {
         <Appbar.Content title="Large Files" subtitle={loading ? undefined : `${entries.length} files · ${formatBytes(totalSize)}`} />
       </Appbar.Header>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.chipScroll}
+        contentContainerStyle={styles.chipRow}
+      >
         {LARGE_FILE_THRESHOLDS.map((threshold, index) => (
           <Chip
             key={threshold.label}
@@ -101,6 +106,7 @@ export function LargeFileFinderScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  chipRow: { paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+  chipScroll: { flexGrow: 0, flexShrink: 0 },
+  chipRow: { paddingHorizontal: 12, paddingVertical: 10, gap: 8, alignItems: 'center' },
   chip: { marginRight: 8 },
 });

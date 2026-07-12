@@ -122,7 +122,12 @@ export function SearchScreen() {
           autoFocus
           style={styles.searchbar}
         />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipScroll}
+          contentContainerStyle={styles.chipRow}
+        >
           {FILTER_CATEGORIES.map((category) => (
             <Chip
               key={category}
@@ -146,7 +151,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingTop: 8 },
   searchbar: { marginHorizontal: 12, elevation: 0 },
-  chipRow: { paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+  chipScroll: { flexGrow: 0, flexShrink: 0 },
+  chipRow: { paddingHorizontal: 12, paddingVertical: 10, gap: 8, alignItems: 'center' },
   chip: { marginRight: 8 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });
