@@ -85,6 +85,18 @@ export const CATEGORY_ICONS: Record<FileCategory, string> = {
   [FileCategory.Unknown]: 'file-outline',
 };
 
+// FileCategory.Document only covers e-reader formats (epub, mobi, ...) at the classification
+// level, so individual files keep their specific Word/Excel/PowerPoint icon everywhere else.
+// Views that want a broader "Documents" bucket (e.g. the quick-access tile and its search entry
+// point) pull in these related categories too.
+export const DOCUMENT_GROUP_CATEGORIES = [
+  FileCategory.Document,
+  FileCategory.Word,
+  FileCategory.Excel,
+  FileCategory.PowerPoint,
+  FileCategory.Text,
+];
+
 export const ARCHIVE_EXTENSIONS = new Set([
   ...CATEGORY_EXTENSIONS[FileCategory.Zip],
   ...CATEGORY_EXTENSIONS[FileCategory.Rar],

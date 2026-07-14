@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { Appbar, Text } from 'react-native-paper';
+import { Appbar, Menu, Text } from 'react-native-paper';
 import { FlashList } from '@shopify/flash-list';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -16,13 +16,20 @@ import { useFileBrowserStore } from '@store/fileBrowserStore';
 import { useConfirmDialogStore } from '@store/confirmDialogStore';
 import { useStorageStore } from '@store/storageStore';
 import { categoryCacheKey, getCachedCategoryEntries, setCachedCategoryEntries } from '@store/categoryCacheStore';
-import { FileEntry } from '@app-types/file';
+import { FileCategory, FileEntry, SortField, SortOrder } from '@app-types/file';
 import { FileService } from '@services/FileService';
 import { FileOperationsService } from '@services/FileOperationsService';
 import { ShareService } from '@services/ShareService';
-import { CATEGORY_LABELS } from '@utils/fileCategory';
+import { CATEGORY_LABELS, DOCUMENT_GROUP_CATEGORIES } from '@utils/fileCategory';
 import { openFilePreview } from '@utils/openFilePreview';
 import { useAppTheme } from '@theme/ThemeProvider';
+
+const SORT_OPTIONS: { field: SortField; label: string }[] = [
+  { field: 'name', label: 'Name' },
+  { field: 'size', label: 'Size' },
+  { field: 'modifiedAt', label: 'Date modified' },
+  { field: 'extension', label: 'Type' },
+];
 
 export function CategoryListScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'Category'>>();
@@ -39,6 +46,9 @@ export function CategoryListScreen() {
   const [loading, setLoading] = useState(() => !getCachedCategoryEntries(cacheKey));
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [sortMenuVisible, setSortMenuVisible] = useState(false);
+  const [sortField, setSortField] = useState<SortField>('modifiedAt');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const refreshToken = useFileBrowserStore((s) => s.refreshToken);
 
   const selectionMode = useFileBrowserStore((s) => s.selectionMode);
@@ -58,15 +68,21 @@ export function CategoryListScreen() {
     [entries, selectedPaths],
   );
 
+  const displayEntries = useMemo(
+    () => FileService.sortEntries(entries, { field: sortField, order: sortOrder }),
+    [entries, sortField, sortOrder],
+  );
+
+  const searchCategories = category === FileCategory.Document ? DOCUMENT_GROUP_CATEGORIES : [category];
+
   // showSpinner: only block the UI when there's nothing cached to show yet. Otherwise the
   // already-cached list stays on screen while a fresh scan runs quietly underneath it.
   const load = async (showSpinner: boolean) => {
     if (showSpinner) setLoading(true);
     try {
       const results = await CategoryService.scan(rootPath, category);
-      const sorted = FileService.sortEntries(results, { field: 'modifiedAt', order: 'desc' });
-      setEntries(sorted);
-      setCachedCategoryEntries(cacheKey, sorted);
+      setEntries(results);
+      setCachedCategoryEntries(cacheKey, results);
     } finally {
       if (showSpinner) setLoading(false);
     }
@@ -152,9 +168,39 @@ export function CategoryListScreen() {
             <Appbar.BackAction onPress={() => navigation.goBack()} />
             <Appbar.Content title={CATEGORY_LABELS[category]} subtitle={loading ? undefined : `${entries.length} items`} />
             <Appbar.Action
+              icon="magnify"
+              onPress={() => navigation.navigate('Search', { rootPath, initialCategories: searchCategories })}
+            />
+            <Appbar.Action
               icon={viewMode === 'list' ? 'view-grid-outline' : 'view-list-outline'}
               onPress={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')}
             />
+            <Menu
+              visible={sortMenuVisible}
+              onDismiss={() => setSortMenuVisible(false)}
+              anchor={<Appbar.Action icon="sort" onPress={() => setSortMenuVisible(true)} />}
+            >
+              {SORT_OPTIONS.map((opt) => (
+                <Menu.Item
+                  key={opt.field}
+                  title={opt.label}
+                  leadingIcon={sortField === opt.field ? 'check' : undefined}
+                  onPress={() => {
+                    setSortOrder(sortField === opt.field && sortOrder === 'asc' ? 'desc' : 'asc');
+                    setSortField(opt.field);
+                    setSortMenuVisible(false);
+                  }}
+                />
+              ))}
+              <Menu.Item
+                title={sortOrder === 'asc' ? 'Descending' : 'Ascending'}
+                leadingIcon="swap-vertical"
+                onPress={() => {
+                  setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                  setSortMenuVisible(false);
+                }}
+              />
+            </Menu>
           </>
         )}
       </Appbar.Header>
@@ -163,12 +209,12 @@ export function CategoryListScreen() {
         <View style={styles.center}>
           <Text style={{ color: theme.colors.onSurfaceVariant }}>Loading…</Text>
         </View>
-      ) : entries.length === 0 ? (
+      ) : displayEntries.length === 0 ? (
         <EmptyState icon="folder-search-outline" title={`No ${CATEGORY_LABELS[category].toLowerCase()} found`} />
       ) : (
         <FlashList
           key={viewMode}
-          data={entries}
+          data={displayEntries}
           extraData={selectedPaths}
           renderItem={renderItem}
           keyExtractor={(item) => item.path}

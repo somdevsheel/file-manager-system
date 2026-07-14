@@ -29,10 +29,10 @@ export function SearchScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'Search'>>();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const theme = useAppTheme();
-  const { rootPath } = route.params;
+  const { rootPath, initialCategories } = route.params;
 
   const [query, setQuery] = useState('');
-  const [activeCategories, setActiveCategories] = useState<FileCategory[]>([]);
+  const [activeCategories, setActiveCategories] = useState<FileCategory[]>(() => initialCategories ?? []);
   const [results, setResults] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);

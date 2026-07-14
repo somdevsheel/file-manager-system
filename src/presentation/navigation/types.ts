@@ -3,7 +3,7 @@ import { FileCategory } from '@app-types/file';
 export type RootStackParamList = {
   Main: undefined;
   Browser: { path: string; title?: string };
-  Search: { rootPath: string };
+  Search: { rootPath: string; initialCategories?: FileCategory[] };
   Category: { category: FileCategory; rootPath: string };
   Favorites: undefined;
   Recent: undefined;
