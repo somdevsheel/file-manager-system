@@ -25,7 +25,7 @@ export function PermissionGateScreen({ onRequestAccess }: Props) {
         Storage access needed
       </Text>
       <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
-        File Manager needs access to all files on your device to browse, organize, and manage folders. Grant
+        Files By Arutech needs access to all files on your device to browse, organize, and manage folders. Grant
         "All files access" in the next screen to continue.
       </Text>
       <Button mode="contained" onPress={onRequestAccess} style={styles.button} contentStyle={styles.buttonContent}>

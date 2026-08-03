@@ -84,7 +84,7 @@ export function HomeScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Appbar.Header elevated={false}>
-        <Appbar.Content title="File Manager" titleStyle={{ fontWeight: '700' }} />
+        <Appbar.Content title="Files By Arutech" titleStyle={{ fontWeight: '700' }} />
         <Appbar.Action icon="magnify" onPress={() => navigation.navigate('Search', { rootPath })} />
         <Appbar.Action icon="cog-outline" onPress={() => navigation.navigate('Settings')} />
       </Appbar.Header>

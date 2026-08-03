@@ -154,7 +154,7 @@ export function SettingsScreen() {
         </List.Section>
 
         <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center', marginTop: 16 }}>
-          File Manager
+          Files By Arutech
         </Text>
       </ScrollView>
     </View>
