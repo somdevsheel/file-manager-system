@@ -2,20 +2,19 @@
   "extends": "@react-native/typescript-config",
   "compilerOptions": {
     "types": ["jest"],
-    "baseUrl": ".",
     "paths": {
-      "@components/*": ["src/presentation/components/*"],
-      "@screens/*": ["src/presentation/screens/*"],
-      "@navigation/*": ["src/presentation/navigation/*"],
-      "@theme/*": ["src/presentation/theme/*"],
-      "@hooks/*": ["src/hooks/*"],
-      "@services/*": ["src/services/*"],
-      "@store/*": ["src/store/*"],
-      "@utils/*": ["src/utils/*"],
-      "@native/*": ["src/native/*"],
-      "@database/*": ["src/database/*"],
-      "@app-types/*": ["src/types/*"],
-      "@assets/*": ["src/assets/*"]
+      "@components/*": ["./src/presentation/components/*"],
+      "@screens/*": ["./src/presentation/screens/*"],
+      "@navigation/*": ["./src/presentation/navigation/*"],
+      "@theme/*": ["./src/presentation/theme/*"],
+      "@hooks/*": ["./src/hooks/*"],
+      "@services/*": ["./src/services/*"],
+      "@store/*": ["./src/store/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@native/*": ["./src/native/*"],
+      "@database/*": ["./src/database/*"],
+      "@app-types/*": ["./src/types/*"],
+      "@assets/*": ["./src/assets/*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],
