@@ -1,8 +1,14 @@
 package com.filemanager.app.filemanager
 
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.media.AudioManager
+import android.os.Build
 import android.provider.Settings
+import android.view.WindowManager
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -72,5 +78,69 @@ class MediaControlModule(reactContext: ReactApplicationContext) : ReactContextBa
         val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         val index = (value.coerceIn(0.0, 1.0) * max).toInt()
         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, index, 0)
+    }
+
+    /** Rotates to (and locks) landscape — used for the video player's custom fullscreen mode. */
+    @ReactMethod
+    fun lockLandscape() {
+        val activity = reactApplicationContext.currentActivity ?: return
+        activity.runOnUiThread {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+    }
+
+    /**
+     * Forces portrait — used when the user explicitly exits fullscreen. Unlike unlockOrientation(),
+     * this actually returns to portrait even if the device is still being held sideways at that
+     * moment, instead of just following the sensor (which would keep it in landscape).
+     */
+    @ReactMethod
+    fun lockPortrait() {
+        val activity = reactApplicationContext.currentActivity ?: return
+        activity.runOnUiThread {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+        }
+    }
+
+    /** Releases any orientation lock, letting the device follow its normal rotation behavior again. */
+    @ReactMethod
+    fun unlockOrientation() {
+        val activity = reactApplicationContext.currentActivity ?: return
+        activity.runOnUiThread {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
+
+    /**
+     * Hides (or restores) the status/navigation bars for an edge-to-edge fullscreen video view.
+     * Also extends content into the display cutout (notch/punch-hole camera) area — without this,
+     * Android reserves a safe zone around it by default, which in landscape shows up as a black
+     * bar down whichever side the cutout lands on.
+     */
+    @ReactMethod
+    fun setImmersiveMode(enabled: Boolean) {
+        val activity = reactApplicationContext.currentActivity ?: return
+        activity.runOnUiThread {
+            val window = activity.window
+            val controller = WindowInsetsControllerCompat(window, window.decorView)
+            if (enabled) {
+                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                WindowCompat.setDecorFitsSystemWindows(window, false)
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    window.attributes = window.attributes.apply {
+                        layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                    }
+                }
+            } else {
+                WindowCompat.setDecorFitsSystemWindows(window, true)
+                controller.show(WindowInsetsCompat.Type.systemBars())
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    window.attributes = window.attributes.apply {
+                        layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+                    }
+                }
+            }
+        }
     }
 }

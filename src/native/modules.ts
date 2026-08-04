@@ -92,6 +92,10 @@ export interface MediaControlNative {
   clearBrightnessOverride(): void;
   getVolume(): Promise<number>;
   setVolume(value: number): void;
+  lockLandscape(): void;
+  lockPortrait(): void;
+  unlockOrientation(): void;
+  setImmersiveMode(enabled: boolean): void;
 }
 
 export const FileSystemNative = requireModule<FileSystemNative>('FileSystem');

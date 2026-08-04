@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Image, Modal, PanResponder, Pressable, StyleSheet, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { FlatList, Image, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { Appbar, Text, IconButton } from 'react-native-paper';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import TrackPlayer, {
@@ -12,6 +12,7 @@ import TrackPlayer, {
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@navigation/types';
+import { SeekBar } from '@components/media/SeekBar';
 import { useAppTheme } from '@theme/ThemeProvider';
 
 function formatTime(seconds: number): string {
@@ -19,10 +20,6 @@ function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
-
-function clamp01(n: number): number {
-  return Math.min(1, Math.max(0, n));
 }
 
 function shuffleArray<T>(items: T[]): T[] {
@@ -43,46 +40,6 @@ const REPEAT_ICONS: Record<RepeatMode, string> = {
   [RepeatMode.Queue]: 'repeat',
   [RepeatMode.Track]: 'repeat-once',
 };
-
-interface SeekBarProps {
-  ratio: number;
-  activeColor: string;
-  trackColor: string;
-  onSeekStart: (ratio: number) => void;
-  onSeekMove: (ratio: number) => void;
-  onSeekEnd: (ratio: number) => void;
-}
-
-function SeekBar({ ratio, activeColor, trackColor, onSeekStart, onSeekMove, onSeekEnd }: SeekBarProps) {
-  const widthRef = useRef(0);
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (e) => onSeekStart(widthRef.current > 0 ? clamp01(e.nativeEvent.locationX / widthRef.current) : 0),
-        onPanResponderMove: (e) => onSeekMove(widthRef.current > 0 ? clamp01(e.nativeEvent.locationX / widthRef.current) : 0),
-        onPanResponderRelease: (e) => onSeekEnd(widthRef.current > 0 ? clamp01(e.nativeEvent.locationX / widthRef.current) : 0),
-      }),
-    [onSeekStart, onSeekMove, onSeekEnd],
-  );
-
-  return (
-    <View
-      style={styles.seekHitArea}
-      onLayout={(e) => {
-        widthRef.current = e.nativeEvent.layout.width;
-      }}
-      {...panResponder.panHandlers}
-    >
-      <View style={[styles.seekTrack, { backgroundColor: trackColor }]}>
-        <View style={[styles.seekFill, { width: `${ratio * 100}%`, backgroundColor: activeColor }]} />
-      </View>
-      <View style={[styles.seekThumb, { left: `${ratio * 100}%`, backgroundColor: activeColor }]} />
-    </View>
-  );
-}
 
 interface NowPlayingMeta {
   title: string;
