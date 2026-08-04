@@ -86,6 +86,14 @@ export interface StorageAnalyzerNative {
   }>;
 }
 
+export interface MediaControlNative {
+  getBrightness(): Promise<number>;
+  setBrightness(value: number): void;
+  clearBrightnessOverride(): void;
+  getVolume(): Promise<number>;
+  setVolume(value: number): void;
+}
+
 export const FileSystemNative = requireModule<FileSystemNative>('FileSystem');
 export const FileOperationsNative = requireModule<FileOperationsNative>('FileOperations');
 export const MediaCategoryNative = requireModule<MediaCategoryNative>('MediaCategory');
@@ -95,6 +103,7 @@ export const ArchiveManagerNative = requireModule<ArchiveManagerNative>('Archive
 export const ApkManagerNative = requireModule<ApkManagerNative>('ApkManager');
 export const FileShareNative = requireModule<FileShareNative>('FileShare');
 export const StorageAnalyzerNative = requireModule<StorageAnalyzerNative>('StorageAnalyzer');
+export const MediaControlNative = requireModule<MediaControlNative>('MediaControl');
 
 export const fileOperationsEmitter = new NativeEventEmitter(NativeModules.FileOperations);
 export const duplicateFinderEmitter = new NativeEventEmitter(NativeModules.DuplicateFinder);

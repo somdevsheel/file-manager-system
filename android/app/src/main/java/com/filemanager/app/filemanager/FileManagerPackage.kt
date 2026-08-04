@@ -18,6 +18,7 @@ class FileManagerPackage : ReactPackage {
             ShareModule(reactContext),
             StorageAnalyzerModule(reactContext),
             ThemeModule(reactContext),
+            MediaControlModule(reactContext),
         )
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> = emptyList()
