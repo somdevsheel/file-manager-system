@@ -10,7 +10,12 @@ function isValidPin(pin: string): boolean {
 
 export function VaultRecoveryView({ onRecovered, onCancel }: { onRecovered: () => void; onCancel: () => void }) {
   const theme = useAppTheme();
-  const questions = useVaultStore((s) => s.recoveryQuestions());
+  // Read once via getState() rather than the reactive hook: recoveryQuestions() builds a new
+  // array every call, and selecting it with useVaultStore((s) => s.recoveryQuestions()) made
+  // every render produce a new reference, which zustand's Object.is check reads as "changed" —
+  // triggering another render, another new array, forever. That infinite loop crashed the app
+  // outright in release builds (no red-box to surface "Maximum update depth exceeded").
+  const [questions] = useState(() => useVaultStore.getState().recoveryQuestions());
   const verifyRecoveryAnswers = useVaultStore((s) => s.verifyRecoveryAnswers);
   const setNewPinAfterRecovery = useVaultStore((s) => s.setNewPinAfterRecovery);
 
