@@ -31,6 +31,7 @@ const TOOLS: { icon: string; label: string; color: string; onPress: (nav: Native
   { icon: 'star-outline', label: 'Favorites', color: '#F4B740', onPress: (nav) => nav.navigate('Favorites') },
   { icon: 'history', label: 'Recent', color: '#4C8DFF', onPress: (nav) => nav.navigate('Recent') },
   { icon: 'trash-can-outline', label: 'Recycle Bin', color: '#E5484D', onPress: (nav) => nav.navigate('RecycleBin') },
+  { icon: 'lock-outline', label: 'Locked', color: '#5B6EE1', onPress: (nav) => nav.navigate('Locked') },
   { icon: 'chart-donut', label: 'Storage', color: '#22B07D', onPress: (nav, rootPath) => nav.navigate('StorageAnalyzer', { rootPath }) },
   { icon: 'content-duplicate', label: 'Duplicates', color: '#A855F7', onPress: (nav, rootPath) => nav.navigate('DuplicateFinder', { rootPath }) },
   { icon: 'file-alert-outline', label: 'Large Files', color: '#FF6B4A', onPress: (nav, rootPath) => nav.navigate('LargeFileFinder', { rootPath }) },

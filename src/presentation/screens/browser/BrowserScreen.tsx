@@ -21,6 +21,9 @@ import { FileService } from '@services/FileService';
 import { FileOperationsService } from '@services/FileOperationsService';
 import { ShareService } from '@services/ShareService';
 import { RecentFilesService } from '@services/RecentFilesService';
+import { LockedFilesService } from '@services/LockedFilesService';
+import { useVaultStore } from '@store/vaultStore';
+import { navigate } from '@navigation/navigationRef';
 import { openFilePreview } from '@utils/openFilePreview';
 import { useAppTheme } from '@theme/ThemeProvider';
 
@@ -165,6 +168,28 @@ export function BrowserScreen({ path, title, isRoot }: Props) {
     });
   };
 
+  const handleBulkLock = () => {
+    if (!useVaultStore.getState().isConfigured()) {
+      useConfirmDialogStore.getState().open({
+        title: 'Set up your vault',
+        message: 'You need to set up a PIN for your Locked vault before locking files.',
+        confirmLabel: 'Set up',
+        onConfirm: () => navigate('Locked'),
+      });
+      return;
+    }
+    useConfirmDialogStore.getState().open({
+      title: 'Lock files',
+      message: `${selectedEntries.length} item(s) will be moved to your Locked vault and hidden from this location.`,
+      confirmLabel: 'Lock',
+      onConfirm: async () => {
+        await LockedFilesService.lock(selectedEntries);
+        exitSelectionMode();
+        triggerRefresh();
+      },
+    });
+  };
+
   const renderItem = ({ item }: { item: FileEntry }) =>
     viewMode === 'list' ? (
       <FileListItem
@@ -283,6 +308,7 @@ export function BrowserScreen({ path, title, isRoot }: Props) {
             { icon: 'content-copy', label: 'Copy', onPress: () => { setClipboard({ paths: selectedEntries.map((e) => e.path), mode: 'copy' }); exitSelectionMode(); } },
             { icon: 'content-cut', label: 'Move', onPress: () => { setClipboard({ paths: selectedEntries.map((e) => e.path), mode: 'cut' }); exitSelectionMode(); } },
             { icon: 'share-variant-outline', label: 'Share', onPress: () => ShareService.shareFiles(selectedEntries.map((e) => e.path)) },
+            { icon: 'lock-outline', label: 'Lock', onPress: handleBulkLock },
             { icon: 'trash-can-outline', label: 'Delete', onPress: handleBulkDelete, destructive: true },
           ]}
         />

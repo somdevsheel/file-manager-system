@@ -11,6 +11,7 @@ export type RootStackParamList = {
   DuplicateFinder: { rootPath: string };
   LargeFileFinder: { rootPath: string };
   RecycleBin: undefined;
+  Locked: undefined;
   ZipManager: { archivePath: string };
   ImageViewer: { path: string; siblingPaths?: string[] };
   VideoPlayer: { path: string };

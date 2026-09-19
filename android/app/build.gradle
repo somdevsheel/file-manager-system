@@ -92,7 +92,7 @@ android {
 
     namespace "com.filemanager.app"
     defaultConfig {
-        applicationId "com.filemanager.app"
+        applicationId "com.arutech.filemanager"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

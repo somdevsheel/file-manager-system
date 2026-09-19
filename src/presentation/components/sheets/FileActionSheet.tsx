@@ -12,6 +12,8 @@ import { FileOperationsService } from '@services/FileOperationsService';
 import { ShareService } from '@services/ShareService';
 import { ApkService } from '@services/ApkService';
 import { FavoritesService } from '@services/FavoritesService';
+import { LockedFilesService } from '@services/LockedFilesService';
+import { useVaultStore } from '@store/vaultStore';
 import { FileIcon } from '@components/file/FileIcon';
 import { useAppTheme } from '@theme/ThemeProvider';
 import { formatBytes, formatDate } from '@utils/format';
@@ -190,6 +192,33 @@ export function FileActionSheet() {
         },
       });
     }
+
+    list.push({
+      key: 'lock',
+      label: 'Lock',
+      icon: 'lock-outline',
+      onPress: () => {
+        close();
+        if (!useVaultStore.getState().isConfigured()) {
+          useConfirmDialogStore.getState().open({
+            title: 'Set up your vault',
+            message: 'You need to set up a PIN for your Locked vault before locking files.',
+            confirmLabel: 'Set up',
+            onConfirm: () => navigate('Locked'),
+          });
+          return;
+        }
+        useConfirmDialogStore.getState().open({
+          title: 'Lock file',
+          message: `"${target.name}" will be moved to your Locked vault and hidden from this location.`,
+          confirmLabel: 'Lock',
+          onConfirm: async () => {
+            await LockedFilesService.lock([target]);
+            useFileBrowserStore.getState().triggerRefresh();
+          },
+        });
+      },
+    });
 
     list.push({
       key: 'delete',

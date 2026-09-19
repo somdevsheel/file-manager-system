@@ -121,6 +121,16 @@ export interface RecentFileEntry {
   openedAt: number;
 }
 
+export interface LockedFileEntry {
+  id: string;
+  originalPath: string;
+  vaultPath: string;
+  name: string;
+  isDirectory: boolean;
+  size: number;
+  lockedAt: number;
+}
+
 export interface ApkInfo {
   packageName: string;
   versionName: string;

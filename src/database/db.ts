@@ -27,8 +27,18 @@ const SCHEMA_STATEMENTS = [
     size INTEGER NOT NULL,
     deletedAt INTEGER NOT NULL
   );`,
+  `CREATE TABLE IF NOT EXISTS locked_files (
+    id TEXT PRIMARY KEY NOT NULL,
+    originalPath TEXT NOT NULL,
+    vaultPath TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    isDirectory INTEGER NOT NULL,
+    size INTEGER NOT NULL,
+    lockedAt INTEGER NOT NULL
+  );`,
   `CREATE INDEX IF NOT EXISTS idx_recent_openedAt ON recent_files (openedAt DESC);`,
   `CREATE INDEX IF NOT EXISTS idx_recycle_deletedAt ON recycle_bin (deletedAt DESC);`,
+  `CREATE INDEX IF NOT EXISTS idx_locked_lockedAt ON locked_files (lockedAt DESC);`,
 ];
 
 export async function getDatabase(): Promise<SQLiteDatabase> {

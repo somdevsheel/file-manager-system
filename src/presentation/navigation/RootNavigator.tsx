@@ -11,6 +11,7 @@ import { StorageAnalyzerScreen } from '@screens/storageAnalyzer/StorageAnalyzerS
 import { DuplicateFinderScreen } from '@screens/duplicates/DuplicateFinderScreen';
 import { LargeFileFinderScreen } from '@screens/largeFiles/LargeFileFinderScreen';
 import { RecycleBinScreen } from '@screens/recycleBin/RecycleBinScreen';
+import { LockedScreen } from '@screens/locked/LockedScreen';
 import { ZipManagerScreen } from '@screens/zip/ZipManagerScreen';
 import { ImageViewerScreen } from '@screens/preview/ImageViewerScreen';
 import { VideoPlayerScreen } from '@screens/preview/VideoPlayerScreen';
@@ -47,6 +48,7 @@ export function RootNavigator() {
         <Stack.Screen name="DuplicateFinder" component={DuplicateFinderScreen} />
         <Stack.Screen name="LargeFileFinder" component={LargeFileFinderScreen} />
         <Stack.Screen name="RecycleBin" component={RecycleBinScreen} />
+        <Stack.Screen name="Locked" component={LockedScreen} />
         <Stack.Screen name="ZipManager" component={ZipManagerScreen} />
         <Stack.Screen name="ImageViewer" component={ImageViewerScreen} options={{ animation: 'fade' }} />
         <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ animation: 'fade' }} />
