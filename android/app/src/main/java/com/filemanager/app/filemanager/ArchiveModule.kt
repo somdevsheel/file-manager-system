@@ -45,6 +45,17 @@ class ArchiveModule(reactContext: ReactApplicationContext) :
     @ReactMethod
     fun removeListeners(count: Int) {}
 
+    // Resolves an archive entry name against destDir and rejects entries that would escape it
+    // (Zip Slip: "../../etc/evil", absolute paths, symlink-style tricks via ".." segments).
+    private fun safeExtractionTarget(destDir: File, entryName: String): File {
+        val destCanonical = destDir.canonicalFile
+        val target = File(destCanonical, entryName).canonicalFile
+        if (target != destCanonical && !target.path.startsWith(destCanonical.path + File.separator)) {
+            throw SecurityException("Archive entry escapes destination directory: $entryName")
+        }
+        return target
+    }
+
     private fun archiveType(path: String): String = when (path.substringAfterLast('.', "").lowercase()) {
         "zip" -> "zip"
         "rar" -> "rar"
@@ -198,7 +209,7 @@ class ArchiveModule(reactContext: ReactApplicationContext) :
                                     cancelFlags.remove(operationId)
                                     return@launch
                                 }
-                                val outFile = File(destDir, entry.name)
+                                val outFile = safeExtractionTarget(File(destDir), entry.name)
                                 if (entry.isDirectory) {
                                     outFile.mkdirs()
                                 } else {
@@ -229,7 +240,7 @@ class ArchiveModule(reactContext: ReactApplicationContext) :
                                 archive.close()
                                 return@launch
                             }
-                            val outFile = File(destDir, header.fileNameString.trim())
+                            val outFile = safeExtractionTarget(File(destDir), header.fileNameString.trim())
                             if (header.isDirectory) {
                                 outFile.mkdirs()
                             } else {

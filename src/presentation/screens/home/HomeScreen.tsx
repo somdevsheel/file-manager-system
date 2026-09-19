@@ -36,6 +36,26 @@ const TOOLS: { icon: string; label: string; color: string; onPress: (nav: Native
   { icon: 'file-alert-outline', label: 'Large Files', color: '#FF6B4A', onPress: (nav, rootPath) => nav.navigate('LargeFileFinder', { rootPath }) },
 ];
 
+async function toFileEntry(entry: RecentFileEntry): Promise<FileEntry> {
+  const info = await FileService.getFileInfo(entry.path).catch(() => null);
+  if (info) {
+    return info;
+  }
+  const extension = entry.name.includes('.') ? entry.name.split('.').pop()!.toLowerCase() : '';
+  return {
+    path: entry.path,
+    name: entry.name,
+    extension,
+    isDirectory: false,
+    size: 0,
+    modifiedAt: entry.openedAt,
+    createdAt: entry.openedAt,
+    isHidden: false,
+    canWrite: false,
+    category: categoryForExtension(extension, false),
+  };
+}
+
 export function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const theme = useAppTheme();
@@ -43,11 +63,13 @@ export function HomeScreen() {
   const loadVolumes = useStorageStore((s) => s.load);
   const primaryVolume = useStorageStore((s) => s.primaryVolume);
 
-  const [recent, setRecent] = useState<RecentFileEntry[]>([]);
+  const [recent, setRecent] = useState<FileEntry[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadRecent = async () => {
-    setRecent(await RecentFilesService.getAll(5));
+    const entries = await RecentFilesService.getAll(5);
+    const enriched = await Promise.all(entries.map((entry) => toFileEntry(entry)));
+    setRecent(enriched);
   };
 
   useEffect(() => {
@@ -62,24 +84,9 @@ export function HomeScreen() {
 
   const rootPath = primaryVolume?.path ?? '/storage/emulated/0';
 
-  const handleOpenRecent = async (entry: RecentFileEntry) => {
-    const info = await FileService.getFileInfo(entry.path).catch(() => null);
-    const category = info?.category ?? categoryForExtension(entry.name.split('.').pop() ?? '', false);
-    openFilePreview(entry.path, category);
+  const handleOpenRecent = async (entry: FileEntry) => {
+    openFilePreview(entry.path, entry.category);
   };
-
-  const asFileEntry = (entry: RecentFileEntry): FileEntry => ({
-    path: entry.path,
-    name: entry.name,
-    extension: entry.name.includes('.') ? entry.name.split('.').pop()!.toLowerCase() : '',
-    isDirectory: false,
-    size: 0,
-    modifiedAt: entry.openedAt,
-    createdAt: entry.openedAt,
-    isHidden: false,
-    canWrite: true,
-    category: categoryForExtension(entry.name.includes('.') ? entry.name.split('.').pop()! : '', false),
-  });
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -134,8 +141,8 @@ export function HomeScreen() {
           <View style={styles.recentList}>
             {recent.map((entry) => (
               <FileListItem
-                key={entry.id}
-                entry={asFileEntry(entry)}
+                key={entry.path}
+                entry={entry}
                 selected={false}
                 selectionMode={false}
                 onPress={() => handleOpenRecent(entry)}
