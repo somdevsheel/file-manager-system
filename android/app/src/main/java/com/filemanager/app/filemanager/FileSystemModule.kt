@@ -8,6 +8,8 @@ import android.os.Build
 import android.os.Environment
 import android.os.StatFs
 import android.os.storage.StorageManager
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -37,7 +39,15 @@ class FileSystemModule(reactContext: ReactApplicationContext) :
         val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Environment.isExternalStorageManager()
         } else {
-            true
+            // Android 7-10 has no "All files access"; storage is gated by the classic runtime
+            // permissions instead, which must actually be granted (this used to return true
+            // unconditionally, leaving every listing empty/failing on those versions).
+            listOf(
+                android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            ).all {
+                ContextCompat.checkSelfPermission(reactApplicationContext, it) == PackageManager.PERMISSION_GRANTED
+            }
         }
         promise.resolve(granted)
     }
@@ -55,6 +65,21 @@ class FileSystemModule(reactContext: ReactApplicationContext) :
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 reactApplicationContext.startActivity(intent)
             }
+        }
+    }
+
+    /** versionName/versionCode from the installed package, so the UI never shows a stale hardcoded version. */
+    @ReactMethod
+    fun getAppVersion(promise: Promise) {
+        try {
+            val info = reactApplicationContext.packageManager.getPackageInfo(reactApplicationContext.packageName, 0)
+            val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode else info.versionCode.toLong()
+            val map = Arguments.createMap()
+            map.putString("versionName", info.versionName ?: "")
+            map.putDouble("versionCode", versionCode.toDouble())
+            promise.resolve(map)
+        } catch (e: Exception) {
+            promise.reject("VERSION_ERROR", e.message, e)
         }
     }
 

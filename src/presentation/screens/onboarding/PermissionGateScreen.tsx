@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { Text, Button } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -32,8 +32,10 @@ export function PermissionGateScreen({ onRequestAccess }: Props) {
         Storage access needed
       </Text>
       <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
-        Files By Arutech needs access to all files on your device to browse, organize, and manage folders. Grant
-        "All files access" in the next screen to continue.
+        Files By Arutech needs access to all files on your device to browse, organize, and manage folders.
+        {Platform.OS === 'android' && Platform.Version >= 30
+          ? ' Grant "All files access" in the next screen to continue.'
+          : ' Allow storage access to continue.'}
       </Text>
       <Button mode="contained" onPress={onRequestAccess} style={styles.button} contentStyle={styles.buttonContent}>
         Grant access

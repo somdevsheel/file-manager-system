@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- The app works entirely offline. INTERNET stays in the main manifest only because debug
+         builds need it to reach the Metro dev server; release builds drop it (and the download
+         permission react-native-blob-util declares, which react-native-pdf pulls in but never
+         uses for downloads here), so the Play Data safety form can honestly declare no network use. -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.DOWNLOAD_WITHOUT_NOTIFICATION" tools:node="remove" />
+</manifest>

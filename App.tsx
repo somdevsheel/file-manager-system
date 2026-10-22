@@ -28,7 +28,7 @@ function AppContent() {
 
   useEffect(() => {
     const checkAccess = async () => {
-      setHasAccess(await PermissionService.hasAllFilesAccess());
+      setHasAccess(await PermissionService.hasAllFilesAccess().catch(() => false));
     };
     checkAccess();
     const subscription = AppState.addEventListener('change', (state) => {
@@ -43,7 +43,6 @@ function AppContent() {
     // Each step is independent — one failing (e.g. a permission dialog error) must not stop the
     // storage volumes from loading, which every screen's root path depends on.
     (async () => {
-      await PermissionService.requestMediaPermissions().catch(() => false);
       await PermissionService.requestNotificationPermission().catch(() => false);
       await loadVolumes().catch(() => {});
       await RecycleBinService.runAutoCleanup(recycleBinRetentionDays).catch(() => 0);
@@ -58,7 +57,14 @@ function AppContent() {
     return (
       <>
         <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
-        <PermissionGateScreen onRequestAccess={() => PermissionService.requestAllFilesAccess()} />
+        <PermissionGateScreen
+          onRequestAccess={async () => {
+            await PermissionService.requestAllFilesAccess().catch(() => {});
+            // The Android 7-10 runtime dialog doesn't always background the app, so re-check here
+            // too rather than relying only on the AppState listener.
+            setHasAccess(await PermissionService.hasAllFilesAccess().catch(() => false));
+          }}
+        />
       </>
     );
   }

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, List, Switch, Menu, Divider, Text } from 'react-native-paper';
 import { useSettingsStore, ThemeMode, ThumbnailSize } from '@store/settingsStore';
 import { useAppTheme } from '@theme/ThemeProvider';
+import { FileSystemNative } from '@native/modules';
 
 const THEME_LABELS: Record<ThemeMode, string> = { light: 'Light', dark: 'Dark', system: 'System default' };
 const THUMBNAIL_LABELS: Record<ThumbnailSize, string> = { small: 'Small', medium: 'Medium', large: 'Large' };
@@ -26,6 +27,13 @@ export function SettingsScreen() {
   const [themeMenuVisible, setThemeMenuVisible] = useState(false);
   const [thumbnailMenuVisible, setThumbnailMenuVisible] = useState(false);
   const [retentionMenuVisible, setRetentionMenuVisible] = useState(false);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    FileSystemNative?.getAppVersion?.()
+      .then((v) => setAppVersion(`${v.versionName} (${v.versionCode})`))
+      .catch(() => {});
+  }, []);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -151,7 +159,7 @@ export function SettingsScreen() {
 
         <List.Section>
           <List.Subheader>About</List.Subheader>
-          <List.Item title="Version" description="0.0.1" left={(p) => <List.Icon {...p} icon="information-outline" />} />
+          <List.Item title="Version" description={appVersion ?? '—'} left={(p) => <List.Icon {...p} icon="information-outline" />} />
         </List.Section>
 
         <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center', marginTop: 16 }}>

@@ -1,16 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Legacy storage permissions, capped at API 32; superseded by MANAGE_EXTERNAL_STORAGE / media perms above -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- Android 7-10 storage access (runtime-requested by PermissionService). From Android 11 on,
+         MANAGE_EXTERNAL_STORAGE below covers everything, including MediaStore queries. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 
-    <!-- Android 11+ broad file access, required for a general-purpose file manager (Play policy: allowed for core file-management apps) -->
+    <!-- Android 11+ broad file access, required for a general-purpose file manager (Play policy: allowed for core file-management apps).
+         The app requires it to run, so the READ_MEDIA_* permissions are deliberately not requested: they'd add nothing
+         and would trigger Play's separate photo/video permission declaration. -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
-
-    <!-- Android 13+ granular media permissions, used as a fallback path when All Files Access is declined -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -27,6 +25,7 @@
       android:allowBackup="false"
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="${usesCleartextTraffic}"
+      android:requestLegacyExternalStorage="true"
       android:supportsRtl="true">
       <activity
         android:name=".MainActivity"

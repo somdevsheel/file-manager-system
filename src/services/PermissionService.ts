@@ -1,5 +1,8 @@
-import { PermissionsAndroid, Platform } from 'react-native';
+import { Linking, PermissionsAndroid, Platform } from 'react-native';
 import { FileSystemNative } from '@native/modules';
+
+// Android 11 (API 30) introduced "All files access"; older versions use the classic runtime permissions.
+const ALL_FILES_ACCESS_MIN_SDK = 30;
 
 export const PermissionService = {
   async hasAllFilesAccess(): Promise<boolean> {
@@ -7,22 +10,24 @@ export const PermissionService = {
     return FileSystemNative.hasAllFilesAccess();
   },
 
-  /** Opens the system "All files access" settings screen for this app. */
-  requestAllFilesAccess(): void {
-    FileSystemNative.requestAllFilesAccess();
-  },
-
-  /** Android 13+ granular media permissions, used when the user declines All Files Access. */
-  async requestMediaPermissions(): Promise<boolean> {
-    if (Platform.OS !== 'android') return true;
-    if (Platform.Version < 33) return true;
-    const permissions = [
-      PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
-      PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO,
-      PermissionsAndroid.PERMISSIONS.READ_MEDIA_AUDIO,
-    ];
-    const results = await PermissionsAndroid.requestMultiple(permissions);
-    return Object.values(results).every((r) => r === PermissionsAndroid.RESULTS.GRANTED);
+  /**
+   * Android 11+: opens the system "All files access" settings screen for this app (the caller
+   * re-checks when the app returns to the foreground). Android 7-10: shows the runtime storage
+   * permission dialog, or app settings if the user previously chose "Don't ask again".
+   */
+  async requestAllFilesAccess(): Promise<void> {
+    if (Platform.OS !== 'android') return;
+    if (Platform.Version >= ALL_FILES_ACCESS_MIN_SDK) {
+      FileSystemNative.requestAllFilesAccess();
+      return;
+    }
+    const results = await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+      PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+    ]);
+    if (Object.values(results).some((r) => r === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN)) {
+      await Linking.openSettings();
+    }
   },
 
   async requestNotificationPermission(): Promise<boolean> {

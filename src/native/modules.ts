@@ -13,6 +13,7 @@ function requireModule<T>(name: string): T {
 export interface FileSystemNative {
   hasAllFilesAccess(): Promise<boolean>;
   requestAllFilesAccess(): void;
+  getAppVersion(): Promise<{ versionName: string; versionCode: number }>;
   getStorageVolumes(): Promise<any[]>;
   listDirectory(path: string): Promise<any[]>;
   getFileInfo(path: string): Promise<any>;
