@@ -11,6 +11,8 @@ import { FileService } from '@services/FileService';
 import { EmptyState } from '@components/common/EmptyState';
 import { useInputDialogStore } from '@store/inputDialogStore';
 import { formatBytes } from '@utils/format';
+import { notifyError } from '@utils/notify';
+import { useFileBrowserStore } from '@store/fileBrowserStore';
 import { useAppTheme } from '@theme/ThemeProvider';
 
 export function ZipManagerScreen() {
@@ -35,11 +37,16 @@ export function ZipManagerScreen() {
         const list = await ArchiveService.listEntries(archivePath, pw);
         setEntries(list);
         setNeedsPassword(false);
-      } catch {
+      } catch (e: any) {
         if (pw !== undefined) {
           setError('Incorrect password');
+          setNeedsPassword(true);
+        } else if (await ArchiveService.isEncrypted(archivePath).catch(() => false)) {
+          setNeedsPassword(true);
+        } else {
+          // Not a password problem (corrupt / unsupported archive) — say so instead of asking for one.
+          setError(e?.message ?? "Couldn't read this archive");
         }
-        setNeedsPassword(true);
       } finally {
         setLoading(false);
       }
@@ -49,7 +56,9 @@ export function ZipManagerScreen() {
 
   useEffect(() => {
     (async () => {
-      const encrypted = await ArchiveService.isEncrypted(archivePath);
+      // If the check itself fails (corrupt/unsupported file), fall through to listing, which
+      // reports the problem — rather than leaving the spinner up forever.
+      const encrypted = await ArchiveService.isEncrypted(archivePath).catch(() => false);
       if (encrypted) {
         setNeedsPassword(true);
         setLoading(false);
@@ -76,9 +85,21 @@ export function ZipManagerScreen() {
     setExtracting(true);
     try {
       const baseName = archiveName.replace(/\.(zip|7z|rar)$/i, '');
-      const destDir = FileService.joinPath(FileService.parentPath(archivePath), baseName);
-      await ArchiveService.extract(archivePath, destDir, password);
-      navigation.navigate('Browser', { path: destDir, title: baseName });
+      const parent = FileService.parentPath(archivePath);
+      // Extract into a fresh folder rather than silently merging into (and overwriting files in)
+      // an existing folder of the same name.
+      let folderName = baseName;
+      for (let n = 1; await FileService.exists(FileService.joinPath(parent, folderName)); n++) {
+        folderName = `${baseName} (${n})`;
+      }
+      const destDir = FileService.joinPath(parent, folderName);
+      const completed = await ArchiveService.extract(archivePath, destDir, password);
+      if (completed) {
+        useFileBrowserStore.getState().triggerRefresh();
+        navigation.navigate('Browser', { path: destDir, title: folderName });
+      }
+    } catch (e) {
+      notifyError(e, "Couldn't extract this archive");
     } finally {
       setExtracting(false);
     }
@@ -115,6 +136,8 @@ export function ZipManagerScreen() {
             Enter password
           </Button>
         </View>
+      ) : error ? (
+        <EmptyState icon="alert-circle-outline" title="Can't open this archive" subtitle={error} />
       ) : entries.length === 0 ? (
         <EmptyState icon="folder-zip-outline" title="Empty archive" />
       ) : (

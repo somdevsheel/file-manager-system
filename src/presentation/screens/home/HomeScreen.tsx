@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Text } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@navigation/types';
 import { useStorageStore } from '@store/storageStore';
@@ -15,6 +15,7 @@ import { FileService } from '@services/FileService';
 import { openFilePreview } from '@utils/openFilePreview';
 import { useAppTheme } from '@theme/ThemeProvider';
 import { categoryForExtension } from '@utils/fileCategory';
+import { notifyError } from '@utils/notify';
 
 const QUICK_ACCESS: { category: FileCategory; icon: string; label: string }[] = [
   { category: FileCategory.Image, icon: 'image-outline', label: 'Images' },
@@ -67,25 +68,38 @@ export function HomeScreen() {
   const [recent, setRecent] = useState<FileEntry[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadRecent = async () => {
-    const entries = await RecentFilesService.getAll(5);
-    const enriched = await Promise.all(entries.map((entry) => toFileEntry(entry)));
-    setRecent(enriched);
-  };
-
-  useEffect(() => {
-    loadRecent();
+  const loadRecent = useCallback(async () => {
+    try {
+      const entries = await RecentFilesService.getAll(5);
+      setRecent(await Promise.all(entries.map((entry) => toFileEntry(entry))));
+    } catch {
+      // Recent files are a convenience; keep whatever is already shown.
+    }
   }, []);
+
+  // Home is a tab, so it stays mounted — reload on every focus or "Recent Files" would never
+  // reflect files opened since the app started.
+  useFocusEffect(
+    useCallback(() => {
+      loadRecent();
+    }, [loadRecent]),
+  );
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadVolumes(), loadRecent()]);
-    setRefreshing(false);
+    try {
+      await Promise.all([loadVolumes(), loadRecent()]);
+    } catch (e) {
+      notifyError(e, "Couldn't refresh storage info");
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const rootPath = primaryVolume?.path ?? '/storage/emulated/0';
 
-  const handleOpenRecent = async (entry: FileEntry) => {
+  const handleOpenRecent = (entry: FileEntry) => {
+    RecentFilesService.record(entry.path, entry.name);
     openFilePreview(entry.path, entry.category);
   };
 
@@ -105,7 +119,7 @@ export function HomeScreen() {
           <StorageCard
             key={volume.id}
             volume={volume}
-            onPress={() => navigation.navigate('Browser', { path: volume.path, title: 'All files' })}
+            onPress={() => navigation.navigate('Browser', { path: volume.path, title: volume.label })}
           />
         ))}
 

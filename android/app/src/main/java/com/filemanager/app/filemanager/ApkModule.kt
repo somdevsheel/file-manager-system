@@ -88,16 +88,21 @@ class ApkModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
-    fun installApk(path: String) {
-        val context = reactApplicationContext
-        val file = File(path)
-        val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    fun installApk(path: String, promise: Promise) {
+        try {
+            val context = reactApplicationContext
+            val file = File(path)
+            val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(intent)
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.reject("INSTALL_ERROR", e.message, e)
         }
-        context.startActivity(intent)
     }
 
     @ReactMethod

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Appbar, Text, ActivityIndicator } from 'react-native-paper';
+import { Appbar, Text, ActivityIndicator, Button } from 'react-native-paper';
 import Pdf from 'react-native-pdf';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@navigation/types';
 import { ShareService } from '@services/ShareService';
 import { useAppTheme } from '@theme/ThemeProvider';
+import { notifyError } from '@utils/notify';
 
 export function PdfViewerScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'PdfViewer'>>();
@@ -23,12 +24,18 @@ export function PdfViewerScreen() {
       <Appbar.Header elevated>
         <Appbar.BackAction onPress={() => navigation.goBack()} />
         <Appbar.Content title={name} subtitle={pageInfo ? `${pageInfo.page} / ${pageInfo.total}` : undefined} />
-        <Appbar.Action icon="share-variant-outline" onPress={() => ShareService.shareFiles([path])} />
+        <Appbar.Action icon="share-variant-outline" onPress={() => ShareService.shareFiles([path]).catch((e) => notifyError(e, "Couldn't share"))} />
       </Appbar.Header>
 
       {error ? (
         <View style={styles.center}>
-          <Text style={{ color: theme.colors.onSurfaceVariant }}>Couldn't open this PDF.</Text>
+          <Text style={{ color: theme.colors.onSurfaceVariant, marginBottom: 16 }}>Couldn't open this PDF.</Text>
+          <Button
+            mode="contained"
+            onPress={() => ShareService.openFile(path).catch((e) => notifyError(e, 'No app found to open this file'))}
+          >
+            Open with another app
+          </Button>
         </View>
       ) : (
         <Pdf

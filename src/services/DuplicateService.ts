@@ -10,11 +10,16 @@ export interface DuplicateScanProgress {
 }
 
 export const DuplicateService = {
+  newScanId(): string {
+    return generateId('dupscan');
+  },
+
+  /** Pass a `scanId` (from newScanId) to be able to cancel() the scan, e.g. when leaving the screen. */
   async findDuplicates(
     rootPath: string,
     onProgress?: (progress: DuplicateScanProgress) => void,
+    scanId = generateId('dupscan'),
   ): Promise<DuplicateGroup[]> {
-    const scanId = generateId('dupscan');
     const subscription = onProgress
       ? duplicateFinderEmitter.addListener('DuplicateScanProgress', (event: DuplicateScanProgress) => {
           if (event.scanId === scanId) onProgress(event);
@@ -25,6 +30,10 @@ export const DuplicateService = {
     } finally {
       subscription?.remove();
     }
+  },
+
+  cancel(scanId: string): void {
+    DuplicateFinderNative.cancelScan(scanId);
   },
 
   keepNewest(group: DuplicateGroup): string[] {

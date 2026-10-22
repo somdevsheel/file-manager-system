@@ -35,6 +35,26 @@ export const FavoritesDao = {
     await db.executeSql('DELETE FROM favorites WHERE path = ?', [path]);
   },
 
+  /** Removes the entry at `path` and, if it was a folder, every favorite inside it. */
+  async removeTree(path: string): Promise<void> {
+    const db = await getDatabase();
+    const prefix = `${path}/`;
+    await db.executeSql('DELETE FROM favorites WHERE path = ? OR substr(path, 1, ?) = ?', [path, prefix.length, prefix]);
+  },
+
+  /** Rewrites favorites after a rename/move so they keep pointing at the same files. */
+  async renameTree(oldPath: string, newPath: string): Promise<void> {
+    const db = await getDatabase();
+    const prefix = `${oldPath}/`;
+    await db.executeSql(
+      `UPDATE OR REPLACE favorites SET
+         path = CASE WHEN path = ? THEN ? ELSE ? || substr(path, ?) END,
+         name = CASE WHEN path = ? THEN ? ELSE name END
+       WHERE path = ? OR substr(path, 1, ?) = ?`,
+      [oldPath, newPath, newPath, oldPath.length + 1, oldPath, newPath.split('/').pop() ?? newPath, oldPath, prefix.length, prefix],
+    );
+  },
+
   async toggle(path: string, name: string, isDirectory: boolean): Promise<boolean> {
     const isFav = await FavoritesDao.isFavorite(path);
     if (isFav) {

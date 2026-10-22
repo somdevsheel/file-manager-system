@@ -226,11 +226,30 @@ class FileSystemModule(reactContext: ReactApplicationContext) :
                     promise.reject("NOT_FOUND", "Source does not exist")
                     return@launch
                 }
-                if (dest.exists()) {
+                // Shared storage is case-insensitive, so "a.txt" -> "A.txt" sees dest as existing
+                // (it's the same file). Route case-only renames through a temporary name instead.
+                // (On a case-sensitive volume a distinct "A.txt" can genuinely exist — that's a conflict.)
+                val caseOnlyRename = source.parentFile == dest.parentFile &&
+                    source.name != dest.name && source.name.equals(dest.name, ignoreCase = true) &&
+                    source.parentFile?.list()?.contains(dest.name) != true
+                if (dest.exists() && !caseOnlyRename) {
                     promise.reject("ALREADY_EXISTS", "Destination already exists")
                     return@launch
                 }
-                if (source.renameTo(dest)) {
+                val renamed = if (caseOnlyRename) {
+                    val temp = File(source.parentFile, ".rename_${System.nanoTime()}_${source.name}")
+                    if (!source.renameTo(temp)) {
+                        false
+                    } else if (temp.renameTo(dest)) {
+                        true
+                    } else {
+                        temp.renameTo(source)
+                        false
+                    }
+                } else {
+                    source.renameTo(dest)
+                }
+                if (renamed) {
                     promise.resolve(FileEntryMapper.fromFile(dest))
                 } else {
                     promise.reject("RENAME_ERROR", "Failed to rename")

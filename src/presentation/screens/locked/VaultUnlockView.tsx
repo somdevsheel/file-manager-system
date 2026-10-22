@@ -15,8 +15,12 @@ export function VaultUnlockView({ onUnlocked, onForgotPin }: { onUnlocked: () =>
 
   useEffect(() => {
     if (cooldownMs <= 0) return;
+    // Counts down against the persisted deadline rather than subtracting 1s per tick, which
+    // drifts (and stalls while the app is backgrounded).
     const interval = setInterval(() => {
-      setCooldownMs((prev) => Math.max(0, prev - 1000));
+      const remaining = Math.max(0, useVaultStore.getState().lockedUntil - Date.now());
+      setCooldownMs(remaining);
+      if (remaining === 0) setError(null); // lockout over — drop the stale "too many attempts" text
     }, 1000);
     return () => clearInterval(interval);
   }, [cooldownMs]);

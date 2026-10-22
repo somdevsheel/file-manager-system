@@ -40,11 +40,13 @@ function AppContent() {
   useEffect(() => {
     if (!hasAccess || startedRef.current) return;
     startedRef.current = true;
+    // Each step is independent — one failing (e.g. a permission dialog error) must not stop the
+    // storage volumes from loading, which every screen's root path depends on.
     (async () => {
-      await PermissionService.requestMediaPermissions();
-      await PermissionService.requestNotificationPermission();
-      await loadVolumes();
-      await RecycleBinService.runAutoCleanup(recycleBinRetentionDays);
+      await PermissionService.requestMediaPermissions().catch(() => false);
+      await PermissionService.requestNotificationPermission().catch(() => false);
+      await loadVolumes().catch(() => {});
+      await RecycleBinService.runAutoCleanup(recycleBinRetentionDays).catch(() => 0);
     })();
     // Runs once after access is granted; retention day changes apply on the next app launch.
     // eslint-disable-next-line react-hooks/exhaustive-deps

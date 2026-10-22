@@ -8,6 +8,7 @@ import { RootStackParamList } from '@navigation/types';
 import { ApkService } from '@services/ApkService';
 import { ApkInfo } from '@app-types/file';
 import { useAppTheme } from '@theme/ThemeProvider';
+import { notifyError } from '@utils/notify';
 
 export function ApkDetailsScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'ApkDetails'>>();
@@ -21,6 +22,7 @@ export function ApkDetailsScreen() {
   useEffect(() => {
     ApkService.getInfo(path)
       .then(setInfo)
+      .catch(() => setInfo(null))
       .finally(() => setLoading(false));
   }, [path]);
 
@@ -62,7 +64,7 @@ export function ApkDetailsScreen() {
               </Chip>
             ) : null}
 
-            <Button mode="contained" style={{ marginTop: 16 }} onPress={() => ApkService.install(path)}>
+            <Button mode="contained" style={{ marginTop: 16 }} onPress={() => ApkService.install(path).catch((e) => notifyError(e, "Couldn't start the installer"))}>
               {info.isInstalled ? 'Reinstall / Update' : 'Install'}
             </Button>
           </View>

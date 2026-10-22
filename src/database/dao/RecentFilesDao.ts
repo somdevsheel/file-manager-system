@@ -44,4 +44,24 @@ export const RecentFilesDao = {
     const db = await getDatabase();
     await db.executeSql('DELETE FROM recent_files WHERE path = ?', [path]);
   },
+
+  /** Removes the entry at `path` and, if it was a folder, every recent file inside it. */
+  async removeTree(path: string): Promise<void> {
+    const db = await getDatabase();
+    const prefix = `${path}/`;
+    await db.executeSql('DELETE FROM recent_files WHERE path = ? OR substr(path, 1, ?) = ?', [path, prefix.length, prefix]);
+  },
+
+  /** Rewrites recent entries after a rename/move so they keep pointing at the same files. */
+  async renameTree(oldPath: string, newPath: string): Promise<void> {
+    const db = await getDatabase();
+    const prefix = `${oldPath}/`;
+    await db.executeSql(
+      `UPDATE OR REPLACE recent_files SET
+         path = CASE WHEN path = ? THEN ? ELSE ? || substr(path, ?) END,
+         name = CASE WHEN path = ? THEN ? ELSE name END
+       WHERE path = ? OR substr(path, 1, ?) = ?`,
+      [oldPath, newPath, newPath, oldPath.length + 1, oldPath, newPath.split('/').pop() ?? newPath, oldPath, prefix.length, prefix],
+    );
+  },
 };

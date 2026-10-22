@@ -24,6 +24,7 @@ export function FolderStatisticsScreen() {
   useEffect(() => {
     FileService.computeFolderStats(path)
       .then(setStats)
+      .catch(() => setStats(null))
       .finally(() => setLoading(false));
   }, [path]);
 

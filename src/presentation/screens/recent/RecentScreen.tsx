@@ -13,7 +13,8 @@ import { useActionSheetStore } from '@store/actionSheetStore';
 import { useConfirmDialogStore } from '@store/confirmDialogStore';
 import { FileEntry } from '@app-types/file';
 import { categoryForExtension } from '@utils/fileCategory';
-import { openFilePreview } from '@utils/openFilePreview';
+import { imageSiblings, openFilePreview } from '@utils/openFilePreview';
+import { notifyError } from '@utils/notify';
 import { useAppTheme } from '@theme/ThemeProvider';
 
 export function RecentScreen() {
@@ -47,6 +48,8 @@ export function RecentScreen() {
         }),
       );
       setEntries(enriched);
+    } catch (e) {
+      notifyError(e, "Couldn't load recent files");
     } finally {
       setLoading(false);
     }
@@ -60,7 +63,7 @@ export function RecentScreen() {
 
   const handlePress = (entry: FileEntry) => {
     RecentFilesService.record(entry.path, entry.name);
-    openFilePreview(entry.path, entry.category);
+    openFilePreview(entry.path, entry.category, imageSiblings(entries));
   };
 
   const handleClearAll = () => {

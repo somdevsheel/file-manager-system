@@ -98,7 +98,7 @@ class ArchiveModule(reactContext: ReactApplicationContext) :
         scope.launch {
             try {
                 val encrypted = when (archiveType(path)) {
-                    "zip" -> ZipFile(path).isEncrypted
+                    "zip" -> ZipFile(path).use { it.isEncrypted }
                     "sevenZip" -> {
                         try {
                             SevenZFile.builder().setFile(File(path)).get().use { false }
@@ -123,13 +123,15 @@ class ArchiveModule(reactContext: ReactApplicationContext) :
                 when (archiveType(path)) {
                     "zip" -> {
                         val zip = if (password != null) ZipFile(path, password.toCharArray()) else ZipFile(path)
-                        for (header in zip.fileHeaders) {
-                            val entry: WritableMap = Arguments.createMap()
-                            entry.putString("name", header.fileName)
-                            entry.putBoolean("isDirectory", header.isDirectory)
-                            entry.putDouble("size", header.uncompressedSize.toDouble())
-                            entry.putDouble("compressedSize", header.compressedSize.toDouble())
-                            result.pushMap(entry)
+                        zip.use {
+                            for (header in it.fileHeaders) {
+                                val entry: WritableMap = Arguments.createMap()
+                                entry.putString("name", header.fileName)
+                                entry.putBoolean("isDirectory", header.isDirectory)
+                                entry.putDouble("size", header.uncompressedSize.toDouble())
+                                entry.putDouble("compressedSize", header.compressedSize.toDouble())
+                                result.pushMap(entry)
+                            }
                         }
                     }
                     "sevenZip" -> {
@@ -184,16 +186,18 @@ class ArchiveModule(reactContext: ReactApplicationContext) :
                 when (archiveType(path)) {
                     "zip" -> {
                         val zip = if (password != null) ZipFile(path, password.toCharArray()) else ZipFile(path)
-                        val headers = zip.fileHeaders
-                        for ((i, header) in headers.withIndex()) {
-                            if (cancelFlag.get()) {
-                                emitProgress(operationId, "unzip", "", i, headers.size, true, true)
-                                promise.resolve(false)
-                                cancelFlags.remove(operationId)
-                                return@launch
+                        zip.use {
+                            val headers = zip.fileHeaders
+                            for ((i, header) in headers.withIndex()) {
+                                if (cancelFlag.get()) {
+                                    emitProgress(operationId, "unzip", "", i, headers.size, true, true)
+                                    promise.resolve(false)
+                                    cancelFlags.remove(operationId)
+                                    return@launch
+                                }
+                                zip.extractFile(header, destDir)
+                                emitProgress(operationId, "unzip", header.fileName, i + 1, headers.size, false, false)
                             }
-                            zip.extractFile(header, destDir)
-                            emitProgress(operationId, "unzip", header.fileName, i + 1, headers.size, false, false)
                         }
                     }
                     "sevenZip" -> {
@@ -317,6 +321,14 @@ class ArchiveModule(reactContext: ReactApplicationContext) :
                                 if (cancelFlag.get()) break
                             }
                         }
+                        if (cancelFlag.get()) {
+                            // Don't leave a truncated archive behind that looks like a finished one.
+                            File(destPath).delete()
+                            emitProgress(operationId, "zip", "", sources.size, sources.size, true, true)
+                            promise.resolve(false)
+                            cancelFlags.remove(operationId)
+                            return@launch
+                        }
                     }
                     else -> {
                         promise.reject("UNSUPPORTED_FORMAT", "Only zip and 7z creation are supported")
@@ -344,7 +356,14 @@ class ArchiveModule(reactContext: ReactApplicationContext) :
         } else {
             val entry = out.createArchiveEntry(file, entryName)
             out.putArchiveEntry(entry)
-            out.write(file.readBytes())
+            // Stream rather than readBytes(): a multi-GB video would otherwise be loaded into memory whole.
+            file.inputStream().use { input ->
+                val buffer = ByteArray(1 shl 16)
+                var read: Int
+                while (input.read(buffer).also { read = it } > 0) {
+                    out.write(buffer, 0, read)
+                }
+            }
             out.closeArchiveEntry()
         }
     }

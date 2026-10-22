@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text, ProgressBar, IconButton } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOperationsStore } from '@store/operationsStore';
 import { FileOperationsService } from '@services/FileOperationsService';
 import { ArchiveService } from '@services/ArchiveService';
@@ -17,14 +18,16 @@ const TYPE_LABELS: Record<string, string> = {
 
 export function ProgressBanner() {
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
   const operations = useOperationsStore((s) => s.operations);
   const dismiss = useOperationsStore((s) => s.dismissOperation);
-  const active = Object.values(operations).filter((op) => !op.done || Date.now() - op.startedAt < 1500);
+  // Finished operations stay listed (showing Done/Failed) until the store auto-dismisses them.
+  const active = Object.values(operations);
 
   if (active.length === 0) return null;
 
   return (
-    <View style={styles.stack} pointerEvents="box-none">
+    <View style={[styles.stack, { bottom: 12 + insets.bottom }]} pointerEvents="box-none">
       {active.map((op) => {
         const progress = op.totalBytes > 0 ? op.processedBytes / op.totalBytes : op.totalCount > 0 ? op.processedCount / op.totalCount : 0;
         return (
@@ -34,7 +37,13 @@ export function ProgressBanner() {
           >
             <View style={styles.headerRow}>
               <Text variant="labelLarge" style={{ color: theme.colors.onSurface, flex: 1 }} numberOfLines={1}>
-                {op.done ? (op.cancelled ? 'Cancelled' : op.error ? 'Failed' : 'Done') : `${TYPE_LABELS[op.type] ?? 'Working'} · ${op.label}`}
+                {op.done
+                  ? op.cancelled
+                    ? `Cancelled · ${op.label}`
+                    : op.error
+                      ? `Failed · ${op.error}`
+                      : `Done · ${op.label}`
+                  : `${TYPE_LABELS[op.type] ?? 'Working'} · ${op.label}`}
               </Text>
               {!op.done ? (
                 <IconButton

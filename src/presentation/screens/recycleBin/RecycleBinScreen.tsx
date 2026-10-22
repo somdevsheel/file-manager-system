@@ -13,6 +13,7 @@ import { EmptyState } from '@components/common/EmptyState';
 import { RecycleBinEntry } from '@app-types/file';
 import { formatBytes, formatDaysRemaining } from '@utils/format';
 import { useAppTheme } from '@theme/ThemeProvider';
+import { notify, notifyError } from '@utils/notify';
 
 export function RecycleBinScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -25,6 +26,8 @@ export function RecycleBinScreen() {
     setLoading(true);
     try {
       setEntries(await RecycleBinService.getAll());
+    } catch (e) {
+      notifyError(e, "Couldn't load the Recycle Bin");
     } finally {
       setLoading(false);
     }
@@ -38,7 +41,13 @@ export function RecycleBinScreen() {
 
   const handleRestore = async (entry: RecycleBinEntry) => {
     setEntries((prev) => prev.filter((e) => e.id !== entry.id));
-    await RecycleBinService.restore(entry);
+    try {
+      await RecycleBinService.restore(entry);
+      notify(`"${entry.name}" restored`);
+    } catch (e) {
+      notifyError(e, "Couldn't restore this item");
+      load(); // undo the optimistic removal
+    }
   };
 
   const handleDeleteForever = (entry: RecycleBinEntry) => {
@@ -49,7 +58,12 @@ export function RecycleBinScreen() {
       destructive: true,
       onConfirm: async () => {
         setEntries((prev) => prev.filter((e) => e.id !== entry.id));
-        await RecycleBinService.deleteForever(entry);
+        try {
+          await RecycleBinService.deleteForever(entry);
+        } catch (e) {
+          load();
+          throw e;
+        }
       },
     });
   };
@@ -63,7 +77,12 @@ export function RecycleBinScreen() {
       onConfirm: async () => {
         const toDelete = entries;
         setEntries([]);
-        await RecycleBinService.emptyBin(toDelete);
+        try {
+          await RecycleBinService.emptyBin(toDelete);
+        } catch (e) {
+          load();
+          throw e;
+        }
       },
     });
   };

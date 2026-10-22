@@ -2,7 +2,7 @@ import SQLite, { SQLiteDatabase } from 'react-native-sqlite-storage';
 
 SQLite.enablePromise(true);
 
-let dbInstance: SQLiteDatabase | null = null;
+let dbPromise: Promise<SQLiteDatabase> | null = null;
 
 const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS favorites (
@@ -41,11 +41,23 @@ const SCHEMA_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_locked_lockedAt ON locked_files (lockedAt DESC);`,
 ];
 
-export async function getDatabase(): Promise<SQLiteDatabase> {
-  if (dbInstance) return dbInstance;
-  dbInstance = await SQLite.openDatabase({ name: 'filemanager.db', location: 'default' });
+async function openAndMigrate(): Promise<SQLiteDatabase> {
+  const db = await SQLite.openDatabase({ name: 'filemanager.db', location: 'default' });
   for (const statement of SCHEMA_STATEMENTS) {
-    await dbInstance.executeSql(statement);
+    await db.executeSql(statement);
   }
-  return dbInstance;
+  return db;
+}
+
+/** Caches the in-flight promise, not the handle: concurrent first callers (e.g. several screens
+ *  loading at startup) must all wait for the schema to exist, rather than one of them getting the
+ *  handle before CREATE TABLE has run and failing with "no such table". */
+export function getDatabase(): Promise<SQLiteDatabase> {
+  if (!dbPromise) {
+    dbPromise = openAndMigrate().catch((e) => {
+      dbPromise = null;
+      throw e;
+    });
+  }
+  return dbPromise;
 }

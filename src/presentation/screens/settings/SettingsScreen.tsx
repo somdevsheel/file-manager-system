@@ -83,6 +83,7 @@ export function SettingsScreen() {
                 onValueChange={(v) => setDefaultViewMode(v ? 'grid' : 'list')}
               />
             )}
+            onPress={() => setDefaultViewMode(defaultViewMode === 'grid' ? 'list' : 'grid')}
           />
           <Menu
             visible={thumbnailMenuVisible}

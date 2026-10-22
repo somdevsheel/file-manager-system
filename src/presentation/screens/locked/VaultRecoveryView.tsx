@@ -31,8 +31,13 @@ export function VaultRecoveryView({ onRecovered, onCancel }: { onRecovered: () =
       setError('Answer both questions');
       return;
     }
-    if (!verifyRecoveryAnswers(submitted)) {
-      setError('One or more answers are incorrect');
+    const result = verifyRecoveryAnswers(submitted);
+    if (!result.ok) {
+      setError(
+        result.cooldownMs
+          ? `Too many attempts. Try again in ${Math.ceil(result.cooldownMs / 1000)}s.`
+          : 'One or more answers are incorrect',
+      );
       return;
     }
     setError(null);

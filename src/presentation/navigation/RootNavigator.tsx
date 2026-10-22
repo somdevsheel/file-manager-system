@@ -1,5 +1,6 @@
 import React from 'react';
 import { createNativeStackNavigator, NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootStackParamList } from '@navigation/types';
 import { BottomTabNavigator } from '@navigation/BottomTabNavigator';
 import { BrowserScreen } from '@screens/browser/BrowserScreen';
@@ -34,11 +35,19 @@ function BrowserRoute({ route }: NativeStackScreenProps<RootStackParamList, 'Bro
 
 export function RootNavigator() {
   const navTheme = useNavTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <NavigationContainer ref={navigationRef} theme={navTheme}>
-      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-        <Stack.Screen name="Main" component={BottomTabNavigator} />
+      {/* targetSdk 36 forces edge-to-edge on Android 15+, so content can draw under the gesture /
+          3-button navigation bar. Pad every stack screen above it once here — lists, selection
+          bars and footers anchored to bottom: 0 then all land above the system bar. Main (the tab
+          bar handles it) and the full-bleed image/video viewers (they inset their own controls)
+          opt out. */}
+      <Stack.Navigator
+        screenOptions={{ headerShown: false, animation: 'slide_from_right', contentStyle: { paddingBottom: insets.bottom } }}
+      >
+        <Stack.Screen name="Main" component={BottomTabNavigator} options={{ contentStyle: { paddingBottom: 0 } }} />
         <Stack.Screen name="Browser" component={BrowserRoute} />
         <Stack.Screen name="Search" component={SearchScreen} />
         <Stack.Screen name="Category" component={CategoryListScreen} />
@@ -50,8 +59,16 @@ export function RootNavigator() {
         <Stack.Screen name="RecycleBin" component={RecycleBinScreen} />
         <Stack.Screen name="Locked" component={LockedScreen} />
         <Stack.Screen name="ZipManager" component={ZipManagerScreen} />
-        <Stack.Screen name="ImageViewer" component={ImageViewerScreen} options={{ animation: 'fade' }} />
-        <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ animation: 'fade' }} />
+        <Stack.Screen
+          name="ImageViewer"
+          component={ImageViewerScreen}
+          options={{ animation: 'fade', contentStyle: { paddingBottom: 0, backgroundColor: '#000000' } }}
+        />
+        <Stack.Screen
+          name="VideoPlayer"
+          component={VideoPlayerScreen}
+          options={{ animation: 'fade', contentStyle: { paddingBottom: 0, backgroundColor: '#000000' } }}
+        />
         <Stack.Screen name="AudioPlayer" component={AudioPlayerScreen} />
         <Stack.Screen name="PdfViewer" component={PdfViewerScreen} />
         <Stack.Screen name="TextViewer" component={TextViewerScreen} />

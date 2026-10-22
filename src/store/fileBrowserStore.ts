@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { SortField, SortOrder, ViewMode } from '@app-types/file';
+import { useSettingsStore } from '@store/settingsStore';
 
 export interface ClipboardState {
   paths: string[];
@@ -27,10 +28,13 @@ interface FileBrowserState {
   triggerRefresh: () => void;
 }
 
+const initialSettings = useSettingsStore.getState();
+
 export const useFileBrowserStore = create<FileBrowserState>()((set, get) => ({
-  viewMode: 'list',
-  sortField: 'name',
-  sortOrder: 'asc',
+  // Start from the user's saved defaults (Settings > Default view) rather than hardcoded values.
+  viewMode: initialSettings.defaultViewMode,
+  sortField: initialSettings.defaultSortField,
+  sortOrder: initialSettings.defaultSortOrder,
   selectionMode: false,
   selectedPaths: new Set(),
   clipboard: null,
@@ -60,3 +64,10 @@ export const useFileBrowserStore = create<FileBrowserState>()((set, get) => ({
   setClipboard: (clipboard) => set({ clipboard }),
   triggerRefresh: () => set({ refreshToken: get().refreshToken + 1 }),
 }));
+
+// Changing the default in Settings applies right away, not just on the next cold start.
+useSettingsStore.subscribe((state, prev) => {
+  if (state.defaultViewMode !== prev.defaultViewMode) {
+    useFileBrowserStore.getState().setViewMode(state.defaultViewMode);
+  }
+});

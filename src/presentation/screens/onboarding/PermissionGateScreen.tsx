@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text, Button } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppTheme } from '@theme/ThemeProvider';
 
@@ -10,9 +11,15 @@ interface Props {
 
 export function PermissionGateScreen({ onRequestAccess }: Props) {
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: theme.colors.background, paddingTop: insets.top, paddingBottom: insets.bottom },
+      ]}
+    >
       <View
         style={[
           styles.iconCircle,

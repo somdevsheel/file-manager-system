@@ -1,6 +1,8 @@
 import RNFS from 'react-native-fs';
 import { FileOperationsNative } from '@native/modules';
 import { LockedFilesDao } from '@database/dao/LockedFilesDao';
+import { FavoritesDao } from '@database/dao/FavoritesDao';
+import { RecentFilesDao } from '@database/dao/RecentFilesDao';
 import { FileService } from '@services/FileService';
 import { FileEntry, LockedFileEntry } from '@app-types/file';
 import { generateId } from '@utils/id';
@@ -12,6 +14,12 @@ const VAULT_DIR_NAME = '.vault';
  *  managers with All Files Access. */
 function vaultDir(): string {
   return FileService.joinPath(RNFS.DocumentDirectoryPath, VAULT_DIR_NAME);
+}
+
+/** True for anything stored inside the vault — such paths must never leak into Recent/Favorites. */
+export function isInVault(path: string): boolean {
+  const dir = vaultDir();
+  return path === dir || path.startsWith(`${dir}/`);
 }
 
 export const LockedFilesService = {
@@ -38,6 +46,9 @@ export const LockedFilesService = {
         isDirectory: original.isDirectory,
         size: original.size,
       });
+      // The original location no longer exists; don't keep pointing Recent/Favorites at it.
+      await FavoritesDao.removeTree(original.path);
+      await RecentFilesDao.removeTree(original.path);
     }
   },
 

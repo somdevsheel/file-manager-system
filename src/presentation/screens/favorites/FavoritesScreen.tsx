@@ -13,7 +13,8 @@ import { EmptyState } from '@components/common/EmptyState';
 import { useActionSheetStore } from '@store/actionSheetStore';
 import { FileEntry } from '@app-types/file';
 import { categoryForExtension } from '@utils/fileCategory';
-import { openFilePreview } from '@utils/openFilePreview';
+import { imageSiblings, openFilePreview } from '@utils/openFilePreview';
+import { notifyError } from '@utils/notify';
 import { useAppTheme } from '@theme/ThemeProvider';
 
 export function FavoritesScreen() {
@@ -47,6 +48,8 @@ export function FavoritesScreen() {
         }),
       );
       setEntries(enriched);
+    } catch (e) {
+      notifyError(e, "Couldn't load favorites");
     } finally {
       setLoading(false);
     }
@@ -63,7 +66,7 @@ export function FavoritesScreen() {
       navigation.navigate('Browser', { path: entry.path, title: entry.name });
     } else {
       RecentFilesService.record(entry.path, entry.name);
-      openFilePreview(entry.path, entry.category);
+      openFilePreview(entry.path, entry.category, imageSiblings(entries));
     }
   };
 

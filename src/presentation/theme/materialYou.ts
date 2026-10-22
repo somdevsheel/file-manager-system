@@ -66,6 +66,17 @@ export function buildDynamicColors(palette: DynamicPalette, dark: boolean) {
       surfaceVariant: t(n2, 700, md3DarkColors.surfaceVariant),
       onSurfaceVariant: t(n2, 200, md3DarkColors.onSurfaceVariant),
       outline: t(n2, 500, md3DarkColors.outline),
+      outlineVariant: t(n2, 700, md3DarkColors.outlineVariant),
+      // Without these, cards/sheets/tab bar keep the baseline purple-tinted surfaces, clashing
+      // with every other wallpaper-derived color.
+      elevation: {
+        level0: 'transparent',
+        level1: t(n1, 800, md3DarkColors.elevation.level1),
+        level2: t(n2, 800, md3DarkColors.elevation.level2),
+        level3: t(n2, 700, md3DarkColors.elevation.level3),
+        level4: t(n2, 700, md3DarkColors.elevation.level4),
+        level5: t(n2, 600, md3DarkColors.elevation.level5),
+      },
     };
   }
   return {
@@ -89,5 +100,14 @@ export function buildDynamicColors(palette: DynamicPalette, dark: boolean) {
     surfaceVariant: t(n2, 100, md3LightColors.surfaceVariant),
     onSurfaceVariant: t(n2, 700, md3LightColors.onSurfaceVariant),
     outline: t(n2, 500, md3LightColors.outline),
+    outlineVariant: t(n2, 200, md3LightColors.outlineVariant),
+    elevation: {
+      level0: 'transparent',
+      level1: t(n1, 50, md3LightColors.elevation.level1),
+      level2: t(n2, 50, md3LightColors.elevation.level2),
+      level3: t(n2, 100, md3LightColors.elevation.level3),
+      level4: t(n2, 100, md3LightColors.elevation.level4),
+      level5: t(n2, 200, md3LightColors.elevation.level5),
+    },
   };
 }

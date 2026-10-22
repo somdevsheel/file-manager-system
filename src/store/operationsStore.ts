@@ -15,6 +15,10 @@ interface OperationsState {
   dismissOperation: (operationId: string) => void;
 }
 
+// How long a finished operation's "Done"/"Failed" card stays up before clearing itself.
+const DONE_DISMISS_MS = 2000;
+const FAILED_DISMISS_MS = 5000;
+
 export const useOperationsStore = create<OperationsState>()((set, get) => ({
   operations: {},
   pendingLabels: {},
@@ -37,6 +41,10 @@ export const useOperationsStore = create<OperationsState>()((set, get) => ({
         },
       },
     });
+    if (progress.done && !existing?.done) {
+      const delay = progress.error ? FAILED_DISMISS_MS : DONE_DISMISS_MS;
+      setTimeout(() => get().dismissOperation(progress.operationId), delay);
+    }
   },
 
   dismissOperation: (operationId) => {

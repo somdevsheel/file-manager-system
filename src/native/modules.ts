@@ -68,7 +68,7 @@ export interface ArchiveManagerNative {
 
 export interface ApkManagerNative {
   getApkInfo(path: string): Promise<any>;
-  installApk(path: string): void;
+  installApk(path: string): Promise<boolean>;
   isPackageInstalled(packageName: string): Promise<boolean>;
 }
 

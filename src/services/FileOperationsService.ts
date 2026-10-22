@@ -2,6 +2,8 @@ import { FileOperationsNative, fileOperationsEmitter } from '@native/modules';
 import { FileEntry, FileOperationProgress } from '@app-types/file';
 import { FileService } from '@services/FileService';
 import { RecycleBinDao } from '@database/dao/RecycleBinDao';
+import { FavoritesDao } from '@database/dao/FavoritesDao';
+import { RecentFilesDao } from '@database/dao/RecentFilesDao';
 import { useOperationsStore } from '@store/operationsStore';
 import { generateId } from '@utils/id';
 
@@ -48,7 +50,15 @@ export const FileOperationsService = {
     const operationId = beginOperation(labelFor(sourcePaths));
     const subscription = subscribe(operationId, onProgress);
     try {
-      return await FileOperationsNative.moveEntries(sourcePaths, destDir, operationId);
+      const destinationPaths = await FileOperationsNative.moveEntries(sourcePaths, destDir, operationId);
+      // Keep Recent/Favorites pointing at the moved files rather than their old locations.
+      for (let i = 0; i < destinationPaths.length; i++) {
+        if (sourcePaths[i] && destinationPaths[i] !== sourcePaths[i]) {
+          await FavoritesDao.renameTree(sourcePaths[i], destinationPaths[i]);
+          await RecentFilesDao.renameTree(sourcePaths[i], destinationPaths[i]);
+        }
+      }
+      return destinationPaths;
     } finally {
       subscription.remove();
     }
@@ -90,15 +100,11 @@ export const FileOperationsService = {
           isDirectory: original.isDirectory,
           size: original.size,
         });
+        await FavoritesDao.removeTree(original.path);
+        await RecentFilesDao.removeTree(original.path);
       }
     } finally {
       subscription.remove();
     }
-  },
-
-  async restoreFromTrash(trashPath: string, originalPath: string): Promise<void> {
-    const destDir = FileService.parentPath(originalPath);
-    const operationId = beginOperation(trashPath.split('/').pop() ?? trashPath);
-    await FileOperationsNative.moveEntries([trashPath], destDir, operationId);
   },
 };

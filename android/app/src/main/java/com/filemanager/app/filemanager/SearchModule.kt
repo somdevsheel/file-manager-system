@@ -54,6 +54,9 @@ class SearchModule(reactContext: ReactApplicationContext) :
                 stack.add(root)
                 var count = 0
                 val lowerQuery = query.lowercase()
+                // A size filter only makes sense for files; letting every directory through would
+                // fill the result limit with folders and crowd out the files actually being looked for.
+                val filesOnly = minSize != null || maxSize != null
 
                 while (stack.isNotEmpty() && count < resultLimit) {
                     if (cancelFlag.get()) break
@@ -63,6 +66,7 @@ class SearchModule(reactContext: ReactApplicationContext) :
                         if (child.isDirectory) {
                             if (!child.name.startsWith(".")) stack.add(child)
                             // Directories can also match the query themselves
+                            if (filesOnly) continue
                         }
                         if (lowerQuery.isNotEmpty() && !child.name.lowercase().contains(lowerQuery)) continue
                         if (extensions != null && extensions.isNotEmpty()) {

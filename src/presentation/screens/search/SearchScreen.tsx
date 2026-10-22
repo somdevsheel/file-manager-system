@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Searchbar, Chip, ActivityIndicator } from 'react-native-paper';
 import { FlashList } from '@shopify/flash-list';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@navigation/types';
@@ -11,8 +12,10 @@ import { FileListItem } from '@components/file/FileListItem';
 import { EmptyState } from '@components/common/EmptyState';
 import { useActionSheetStore } from '@store/actionSheetStore';
 import { FileCategory, FileEntry } from '@app-types/file';
-import { CATEGORY_LABELS } from '@utils/fileCategory';
-import { openFilePreview } from '@utils/openFilePreview';
+import { CATEGORY_LABELS, DOCUMENT_GROUP_CATEGORIES } from '@utils/fileCategory';
+import { imageSiblings, openFilePreview } from '@utils/openFilePreview';
+import { notifyError } from '@utils/notify';
+import { useSettingsStore } from '@store/settingsStore';
 import { useAppTheme } from '@theme/ThemeProvider';
 
 const FILTER_CATEGORIES = [
@@ -29,10 +32,18 @@ export function SearchScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'Search'>>();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { rootPath, initialCategories } = route.params;
 
   const [query, setQuery] = useState('');
   const [activeCategories, setActiveCategories] = useState<FileCategory[]>(() => initialCategories ?? []);
+  // Categories passed in from elsewhere (e.g. "Code" from the Categories tab) get a chip too —
+  // otherwise they'd be an invisible, un-removable filter.
+  const [chipCategories] = useState<FileCategory[]>(() => [
+    ...FILTER_CATEGORIES,
+    ...(initialCategories ?? []).filter((c) => !FILTER_CATEGORIES.includes(c)),
+  ]);
+  const showHiddenFiles = useSettingsStore((s) => s.showHiddenFiles);
   const [results, setResults] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -44,21 +55,43 @@ export function SearchScreen() {
       return;
     }
     setLoading(true);
+    let stale = false;
+    const searchId = SearchService.newSearchId();
+    // "Documents" is a group (Word, Excel, PowerPoint, text, e-books), same as its Category screen.
+    const categories = activeCategories.flatMap((c) => (c === FileCategory.Document ? DOCUMENT_GROUP_CATEGORIES : [c]));
     const handle = setTimeout(async () => {
       try {
-        const found = await SearchService.search(rootPath, {
-          query: query.trim(),
-          categories: activeCategories.length > 0 ? activeCategories : undefined,
+        const found = await SearchService.search(
           rootPath,
-        });
-        setResults(found);
+          {
+            query: query.trim(),
+            categories: categories.length > 0 ? [...new Set(categories)] : undefined,
+            rootPath,
+          },
+          undefined,
+          searchId,
+        );
+        if (stale) return;
+        setResults(showHiddenFiles ? found : found.filter((e) => !e.isHidden));
+      } catch (e) {
+        if (stale) return;
+        setResults([]);
+        notifyError(e, 'Search failed');
       } finally {
-        setLoading(false);
-        setSearched(true);
+        if (!stale) {
+          setLoading(false);
+          setSearched(true);
+        }
       }
     }, 350);
-    return () => clearTimeout(handle);
-  }, [query, activeCategories, rootPath]);
+    return () => {
+      // A newer keystroke/filter supersedes this search: drop its results and stop the native
+      // walk, instead of letting an older, slower search overwrite the newer results.
+      stale = true;
+      clearTimeout(handle);
+      SearchService.cancel(searchId);
+    };
+  }, [query, activeCategories, rootPath, showHiddenFiles]);
 
   const toggleCategory = (category: FileCategory) => {
     setActiveCategories((prev) =>
@@ -71,7 +104,7 @@ export function SearchScreen() {
       navigation.navigate('Browser', { path: entry.path, title: entry.name });
     } else {
       RecentFilesService.record(entry.path, entry.name);
-      openFilePreview(entry.path, entry.category);
+      openFilePreview(entry.path, entry.category, imageSiblings(results));
     }
   };
 
@@ -112,7 +145,9 @@ export function SearchScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.header}>
+      {/* No Appbar.Header here (which pads for the status bar itself), so apply the inset
+          manually — the status bar is translucent and would otherwise cover the search bar. */}
+      <View style={{ paddingTop: insets.top + 8 }}>
         <Searchbar
           placeholder="Search files"
           value={query}
@@ -128,7 +163,7 @@ export function SearchScreen() {
           style={styles.chipScroll}
           contentContainerStyle={styles.chipRow}
         >
-          {FILTER_CATEGORIES.map((category) => (
+          {chipCategories.map((category) => (
             <Chip
               key={category}
               selected={activeCategories.includes(category)}
@@ -149,7 +184,6 @@ export function SearchScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingTop: 8 },
   searchbar: { marginHorizontal: 12, elevation: 0 },
   chipScroll: { flexGrow: 0, flexShrink: 0 },
   chipRow: { paddingHorizontal: 12, paddingVertical: 10, gap: 8, alignItems: 'center' },

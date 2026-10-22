@@ -13,6 +13,7 @@ import { useConfirmDialogStore } from '@store/confirmDialogStore';
 import { DuplicateGroup, FileEntry } from '@app-types/file';
 import { formatBytes } from '@utils/format';
 import { useAppTheme } from '@theme/ThemeProvider';
+import { notifyError } from '@utils/notify';
 
 export function DuplicateFinderScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'DuplicateFinder'>>();
@@ -29,18 +30,28 @@ export function DuplicateFinderScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    const scanId = DuplicateService.newScanId();
     setScanning(true);
-    DuplicateService.findDuplicates(rootPath, (p) => {
-      if (!cancelled) setProgress(p);
-    })
+    DuplicateService.findDuplicates(
+      rootPath,
+      (p) => {
+        if (!cancelled) setProgress(p);
+      },
+      scanId,
+    )
       .then((found) => {
         if (!cancelled) setGroups(found);
+      })
+      .catch((e) => {
+        if (!cancelled) notifyError(e, 'Duplicate scan failed');
       })
       .finally(() => {
         if (!cancelled) setScanning(false);
       });
     return () => {
       cancelled = true;
+      // Otherwise the native scan keeps hashing every file on the device after the user leaves.
+      DuplicateService.cancel(scanId);
     };
   }, [rootPath]);
 
@@ -74,9 +85,15 @@ export function DuplicateFinderScreen() {
   const wastedSpace = groups.reduce((sum, g) => sum + g.size * (g.files.length - 1), 0);
 
   const handleDeleteSelected = () => {
+    // Selecting every file in a group would remove the original too, not just its duplicates.
+    const fullyRemovedGroups = groups.filter((g) => g.files.every((f) => selected.has(f.path))).length;
+    const warning =
+      fullyRemovedGroups > 0
+        ? `\n\nWarning: all copies of ${fullyRemovedGroups} file(s) are selected, so no copy of them will be kept.`
+        : '';
     useConfirmDialogStore.getState().open({
       title: 'Move to Recycle Bin',
-      message: `${selectedEntries.length} duplicate file(s) will be moved to the Recycle Bin, freeing ${formatBytes(totalReclaimable)}.`,
+      message: `${selectedEntries.length} duplicate file(s) will be moved to the Recycle Bin, freeing ${formatBytes(totalReclaimable)}.${warning}`,
       confirmLabel: 'Delete',
       destructive: true,
       onConfirm: async () => {

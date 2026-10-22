@@ -23,6 +23,7 @@ export function FileDetailsScreen() {
   useEffect(() => {
     FileService.getFileInfo(path)
       .then(setEntry)
+      .catch(() => setEntry(null))
       .finally(() => setLoading(false));
   }, [path]);
 

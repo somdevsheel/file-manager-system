@@ -107,6 +107,14 @@ class FileOperationsModule(reactContext: ReactApplicationContext) :
         return candidate
     }
 
+    // True when [dir] is [root] itself or nested somewhere inside it — copying/moving a folder
+    // there would recurse into its own output (and a move's delete step would wipe the copy too).
+    private fun isSameOrInside(dir: File, root: File): Boolean {
+        val rootPath = root.canonicalPath
+        val dirPath = dir.canonicalPath
+        return dirPath == rootPath || dirPath.startsWith(rootPath + File.separator)
+    }
+
     private fun copyFile(source: File, dest: File) {
         dest.parentFile?.mkdirs()
         FileInputStream(source).use { input ->
@@ -130,6 +138,9 @@ class FileOperationsModule(reactContext: ReactApplicationContext) :
                 val destination = File(destDir)
                 destination.mkdirs()
                 val roots = (0 until sourcePaths.size()).map { File(sourcePaths.getString(it)!!) }
+                roots.firstOrNull { it.isDirectory && isSameOrInside(destination, it) }?.let {
+                    throw IllegalArgumentException("Can't copy \"${it.name}\" into itself")
+                }
 
                 val allFiles = mutableListOf<Pair<File, File>>() // source -> dest
                 val destinationRoots = mutableListOf<String>()
@@ -141,9 +152,6 @@ class FileOperationsModule(reactContext: ReactApplicationContext) :
                         for (f in collectFiles(root)) {
                             val relative = f.absolutePath.removePrefix(basePath)
                             allFiles.add(f to File(targetRoot, relative))
-                        }
-                        if (collectFiles(root).isEmpty()) {
-                            targetRoot.mkdirs()
                         }
                     } else {
                         allFiles.add(root to targetRoot)
@@ -196,6 +204,9 @@ class FileOperationsModule(reactContext: ReactApplicationContext) :
                 val destination = File(destDir)
                 destination.mkdirs()
                 val roots = (0 until sourcePaths.size()).map { File(sourcePaths.getString(it)!!) }
+                roots.firstOrNull { it.isDirectory && isSameOrInside(destination, it) }?.let {
+                    throw IllegalArgumentException("Can't move \"${it.name}\" into itself")
+                }
                 val totalBytes = roots.sumOf { r -> collectFiles(r).sumOf { if (it.isFile) it.length() else 0L } }
                 var processedBytes = 0L
                 var processedCount = 0
@@ -205,9 +216,19 @@ class FileOperationsModule(reactContext: ReactApplicationContext) :
                 for (root in roots) {
                     if (cancelFlag.get()) {
                         emitProgress(operationId, "move", root.name, processedBytes, totalBytes, processedCount, totalCount, true, true)
-                        promise.resolve(Arguments.createArray())
+                        // Resolve with the entries already moved (index-aligned with sourcePaths) so
+                        // callers like the Recycle Bin / vault can still record where they went.
+                        val partial = Arguments.createArray()
+                        destinationRoots.forEach { partial.pushString(it) }
+                        promise.resolve(partial)
                         cancelFlags.remove(operationId)
                         return@launch
+                    }
+                    if (root.parentFile?.canonicalPath == destination.canonicalPath) {
+                        // Moving into the folder it already lives in is a no-op, not a rename to "name (1)".
+                        destinationRoots.add(root.absolutePath)
+                        processedCount++
+                        continue
                     }
                     val target = uniqueDestination(destination, root.name)
                     val renamed = root.renameTo(target)

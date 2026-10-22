@@ -5,10 +5,11 @@ import { NativeModules } from 'react-native';
 // This app's custom native modules (android/app/.../filemanager) aren't registered in the Jest
 // environment, but several files construct NativeEventEmitter at import time — stub them so
 // module evaluation doesn't crash the whole tree during tests.
-['FileSystem', 'FileOperations', 'MediaCategory', 'FileSearch', 'DuplicateFinder', 'ArchiveManager', 'ApkManager', 'FileShare', 'StorageAnalyzer', 'ThemeInfo'].forEach((name) => {
+['FileSystem', 'FileOperations', 'MediaCategory', 'FileSearch', 'DuplicateFinder', 'ArchiveManager', 'ApkManager', 'FileShare', 'StorageAnalyzer', 'ThemeInfo', 'MediaControl'].forEach((name) => {
   NativeModules[name] = NativeModules[name] || { addListener: jest.fn(), removeListeners: jest.fn() };
 });
 
+jest.mock('react-native-worklets', () => require('react-native-worklets/lib/module/mock'));
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 
 jest.mock('react-native-mmkv', () => {
@@ -67,6 +68,8 @@ jest.mock('react-native-track-player', () => ({
   usePlaybackState: () => ({ state: 'none' }),
   useProgress: () => ({ position: 0, duration: 0, buffered: 0 }),
   State: { Playing: 'playing', Paused: 'paused' },
+  RepeatMode: { Off: 0, Track: 1, Queue: 2 },
+  Capability: { Play: 0, Pause: 1, Stop: 2, SeekTo: 3, SkipToNext: 4, SkipToPrevious: 5 },
   Event: {
     RemotePlay: 'remote-play',
     RemotePause: 'remote-pause',

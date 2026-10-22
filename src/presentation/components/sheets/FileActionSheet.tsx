@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useActionSheetStore } from '@store/actionSheetStore';
 import { useInputDialogStore } from '@store/inputDialogStore';
@@ -20,6 +21,10 @@ import { formatBytes, formatDate } from '@utils/format';
 import { navigate } from '@navigation/navigationRef';
 import { openFilePreview } from '@utils/openFilePreview';
 import { FileCategory } from '@app-types/file';
+import { FavoritesDao } from '@database/dao/FavoritesDao';
+import { RecentFilesDao } from '@database/dao/RecentFilesDao';
+import { validateFileName } from '@utils/fileName';
+import { notify, notifyError } from '@utils/notify';
 
 interface ActionItem {
   key: string;
@@ -35,15 +40,24 @@ interface ActionItem {
 // no-op'ing with no error. See github.com/gorhom/react-native-bottom-sheet/issues/2547.
 export function FileActionSheet() {
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
   const target = useActionSheetStore((s) => s.target);
   const close = useActionSheetStore((s) => s.close);
   const [isFavorite, setIsFavorite] = useState(false);
   const primaryVolume = useStorageStore((s) => s.primaryVolume);
 
   useEffect(() => {
-    if (target) {
-      FavoritesService.isFavorite(target.path).then(setIsFavorite);
-    }
+    if (!target) return;
+    let cancelled = false;
+    setIsFavorite(false); // don't show the previous target's state while this one loads
+    FavoritesService.isFavorite(target.path)
+      .then((fav) => {
+        if (!cancelled) setIsFavorite(fav);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [target]);
 
   const actions: ActionItem[] = useMemo(() => {
@@ -71,7 +85,7 @@ export function FileActionSheet() {
         icon: 'share-variant-outline',
         onPress: () => {
           close();
-          ShareService.shareFiles([target.path]);
+          ShareService.shareFiles([target.path]).catch((e) => notifyError(e, "Couldn't share this file"));
         },
       });
     }
@@ -81,8 +95,13 @@ export function FileActionSheet() {
       label: isFavorite ? 'Remove from favorites' : 'Add to favorites',
       icon: isFavorite ? 'star' : 'star-outline',
       onPress: async () => {
-        await FavoritesService.toggle(target.path, target.name, target.isDirectory);
         close();
+        try {
+          const nowFavorite = await FavoritesService.toggle(target.path, target.name, target.isDirectory);
+          notify(nowFavorite ? 'Added to favorites' : 'Removed from favorites');
+        } catch (e) {
+          notifyError(e);
+        }
       },
     });
 
@@ -97,10 +116,15 @@ export function FileActionSheet() {
           initialValue: target.name,
           confirmLabel: 'Rename',
           selectBaseName: !target.isDirectory,
-          validate: (v) => (v.trim().length === 0 ? 'Name cannot be empty' : null),
-          onConfirm: async (newName) => {
+          validate: validateFileName,
+          onConfirm: async (value) => {
+            const newName = value.trim();
+            if (newName === target.name) return; // unchanged — nothing to do
             const parent = FileService.parentPath(target.path);
-            await FileService.rename(target.path, FileService.joinPath(parent, newName));
+            const newPath = FileService.joinPath(parent, newName);
+            await FileService.rename(target.path, newPath);
+            await FavoritesDao.renameTree(target.path, newPath).catch(() => {});
+            await RecentFilesDao.renameTree(target.path, newPath).catch(() => {});
             useFileBrowserStore.getState().triggerRefresh();
           },
         });
@@ -133,15 +157,19 @@ export function FileActionSheet() {
       icon: 'content-duplicate',
       onPress: async () => {
         close();
-        await FileOperationsService.duplicate(target.path);
-        useFileBrowserStore.getState().triggerRefresh();
+        try {
+          await FileOperationsService.duplicate(target.path);
+          useFileBrowserStore.getState().triggerRefresh();
+        } catch (e) {
+          notifyError(e, "Couldn't duplicate this item");
+        }
       },
     });
 
     if (target.category === FileCategory.Zip || target.category === FileCategory.Rar || target.category === FileCategory.SevenZip) {
       list.push({
         key: 'extract',
-        label: 'Extract here',
+        label: 'Open archive',
         icon: 'archive-arrow-out-outline',
         onPress: () => {
           close();
@@ -157,7 +185,7 @@ export function FileActionSheet() {
         icon: 'android',
         onPress: () => {
           close();
-          ApkService.install(target.path);
+          ApkService.install(target.path).catch((e) => notifyError(e, "Couldn't start the installer"));
         },
       });
       list.push({
@@ -249,7 +277,7 @@ export function FileActionSheet() {
       <Pressable style={styles.backdrop} onPress={close} />
       <View style={[styles.sheet, { backgroundColor: theme.colors.elevation.level3 }]}>
         <View style={[styles.handle, { backgroundColor: theme.colors.outline }]} />
-        <ScrollView contentContainerStyle={styles.container} bounces={false}>
+        <ScrollView contentContainerStyle={[styles.container, { paddingBottom: 24 + insets.bottom }]} bounces={false}>
           {target && (
             <View style={styles.header}>
               <FileIcon entry={target} size={40} />

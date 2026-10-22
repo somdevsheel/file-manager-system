@@ -1,5 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { MainTabParamList } from '@navigation/types';
 import { HomeScreen } from '@screens/home/HomeScreen';
@@ -32,6 +33,7 @@ function BrowserTabScreen() {
 
 export function BottomTabNavigator() {
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
@@ -42,8 +44,10 @@ export function BottomTabNavigator() {
         tabBarStyle: {
           backgroundColor: theme.colors.elevation.level2,
           borderTopColor: theme.colors.outlineVariant,
-          height: 62,
-          paddingBottom: 8,
+          // A fixed height overrides the navigator's own inset handling, so add the system
+          // navigation bar inset back in or the tab labels sit underneath it.
+          height: 62 + insets.bottom,
+          paddingBottom: 8 + insets.bottom,
           paddingTop: 6,
         },
         tabBarLabelStyle: { fontSize: 12, fontWeight: '500' },

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Appbar, Menu, Text } from 'react-native-paper';
 import { FlashList } from '@shopify/flash-list';
@@ -16,12 +16,14 @@ import { useFileBrowserStore } from '@store/fileBrowserStore';
 import { useConfirmDialogStore } from '@store/confirmDialogStore';
 import { useStorageStore } from '@store/storageStore';
 import { categoryCacheKey, getCachedCategoryEntries, setCachedCategoryEntries } from '@store/categoryCacheStore';
-import { FileCategory, FileEntry, SortField, SortOrder } from '@app-types/file';
+import { FileEntry, SortField, SortOrder } from '@app-types/file';
 import { FileService } from '@services/FileService';
 import { FileOperationsService } from '@services/FileOperationsService';
 import { ShareService } from '@services/ShareService';
-import { CATEGORY_LABELS, DOCUMENT_GROUP_CATEGORIES } from '@utils/fileCategory';
-import { openFilePreview } from '@utils/openFilePreview';
+import { CATEGORY_LABELS } from '@utils/fileCategory';
+import { imageSiblings, openFilePreview } from '@utils/openFilePreview';
+import { notify, notifyError } from '@utils/notify';
+import { useSelectionModeLifecycle } from '@hooks/useSelectionModeLifecycle';
 import { useAppTheme } from '@theme/ThemeProvider';
 
 const SORT_OPTIONS: { field: SortField; label: string }[] = [
@@ -62,6 +64,8 @@ export function CategoryListScreen() {
   const primaryVolume = useStorageStore((s) => s.primaryVolume);
 
   const numColumns = Math.max(2, Math.floor(width / 130));
+  const loadIdRef = useRef(0);
+  useSelectionModeLifecycle();
 
   const selectedEntries = useMemo(
     () => entries.filter((e) => selectedPaths.has(e.path)),
@@ -73,18 +77,19 @@ export function CategoryListScreen() {
     [entries, sortField, sortOrder],
   );
 
-  const searchCategories = category === FileCategory.Document ? DOCUMENT_GROUP_CATEGORIES : [category];
-
   // showSpinner: only block the UI when there's nothing cached to show yet. Otherwise the
   // already-cached list stays on screen while a fresh scan runs quietly underneath it.
   const load = async (showSpinner: boolean) => {
+    const loadId = ++loadIdRef.current;
     if (showSpinner) setLoading(true);
     try {
       const results = await CategoryService.scan(rootPath, category);
-      setEntries(results);
       setCachedCategoryEntries(cacheKey, results);
+      if (loadId === loadIdRef.current) setEntries(results);
+    } catch (e) {
+      if (loadId === loadIdRef.current) notifyError(e, `Couldn't load ${CATEGORY_LABELS[category].toLowerCase()}`);
     } finally {
-      if (showSpinner) setLoading(false);
+      if (showSpinner && loadId === loadIdRef.current) setLoading(false);
     }
   };
 
@@ -94,8 +99,10 @@ export function CategoryListScreen() {
   }, [category, rootPath, refreshToken]);
 
   useEffect(() => {
-    return () => exitSelectionMode();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const loadIds = loadIdRef;
+    return () => {
+      loadIds.current++; // drop results from a scan still running after we've left
+    };
   }, []);
 
   const handleRefresh = async () => {
@@ -110,7 +117,7 @@ export function CategoryListScreen() {
       return;
     }
     RecentFilesService.record(entry.path, entry.name);
-    openFilePreview(entry.path, entry.category);
+    openFilePreview(entry.path, entry.category, imageSiblings(displayEntries));
   };
 
   const handleLongPress = (entry: FileEntry) => {
@@ -131,6 +138,12 @@ export function CategoryListScreen() {
         triggerRefresh();
       },
     });
+  };
+
+  const handleClip = (mode: 'copy' | 'cut') => {
+    setClipboard({ paths: selectedEntries.map((e) => e.path), mode });
+    exitSelectionMode();
+    notify(`${selectedEntries.length} item(s) ready to ${mode === 'copy' ? 'copy' : 'move'} — open a folder and paste`);
   };
 
   const renderItem = ({ item }: { item: FileEntry }) =>
@@ -169,7 +182,7 @@ export function CategoryListScreen() {
             <Appbar.Content title={CATEGORY_LABELS[category]} subtitle={loading ? undefined : `${entries.length} items`} />
             <Appbar.Action
               icon="magnify"
-              onPress={() => navigation.navigate('Search', { rootPath, initialCategories: searchCategories })}
+              onPress={() => navigation.navigate('Search', { rootPath, initialCategories: [category] })}
             />
             <Appbar.Action
               icon={viewMode === 'list' ? 'view-grid-outline' : 'view-list-outline'}
@@ -228,10 +241,15 @@ export function CategoryListScreen() {
       {selectionMode && (
         <SelectionBar
           actions={[
-            { icon: 'content-copy', label: 'Copy', onPress: () => { setClipboard({ paths: selectedEntries.map((e) => e.path), mode: 'copy' }); exitSelectionMode(); } },
-            { icon: 'content-cut', label: 'Move', onPress: () => { setClipboard({ paths: selectedEntries.map((e) => e.path), mode: 'cut' }); exitSelectionMode(); } },
-            { icon: 'share-variant-outline', label: 'Share', onPress: () => ShareService.shareFiles(selectedEntries.map((e) => e.path)) },
-            { icon: 'trash-can-outline', label: 'Delete', onPress: handleBulkDelete, destructive: true },
+            { icon: 'content-copy', label: 'Copy', onPress: () => handleClip('copy'), disabled: selectedEntries.length === 0 },
+            { icon: 'content-cut', label: 'Move', onPress: () => handleClip('cut'), disabled: selectedEntries.length === 0 },
+            {
+              icon: 'share-variant-outline',
+              label: 'Share',
+              onPress: () => ShareService.shareFiles(selectedEntries.map((e) => e.path)).catch((e) => notifyError(e, "Couldn't share")),
+              disabled: selectedEntries.length === 0,
+            },
+            { icon: 'trash-can-outline', label: 'Delete', onPress: handleBulkDelete, destructive: true, disabled: selectedEntries.length === 0 },
           ]}
         />
       )}

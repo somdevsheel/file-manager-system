@@ -9,8 +9,8 @@ export const LARGE_FILE_THRESHOLDS = [
 ] as const;
 
 export const LargeFileService = {
-  async find(rootPath: string, minSizeBytes: number): Promise<FileEntry[]> {
-    const results = await SearchService.search(rootPath, { query: '', minSize: minSizeBytes }, 5000);
+  async find(rootPath: string, minSizeBytes: number, searchId?: string): Promise<FileEntry[]> {
+    const results = await SearchService.search(rootPath, { query: '', minSize: minSizeBytes }, 5000, searchId);
     return results.filter((r) => !r.isDirectory).sort((a, b) => b.size - a.size);
   },
 };

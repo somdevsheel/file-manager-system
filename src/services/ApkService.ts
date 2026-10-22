@@ -6,8 +6,8 @@ export const ApkService = {
     return ApkManagerNative.getApkInfo(path);
   },
 
-  install(path: string): void {
-    ApkManagerNative.installApk(path);
+  async install(path: string): Promise<void> {
+    await ApkManagerNative.installApk(path);
   },
 
   async isInstalled(packageName: string): Promise<boolean> {

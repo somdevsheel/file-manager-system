@@ -13,7 +13,9 @@ import { useActionSheetStore } from '@store/actionSheetStore';
 import { useFileBrowserStore } from '@store/fileBrowserStore';
 import { FileEntry } from '@app-types/file';
 import { formatBytes } from '@utils/format';
-import { openFilePreview } from '@utils/openFilePreview';
+import { imageSiblings, openFilePreview } from '@utils/openFilePreview';
+import { notifyError } from '@utils/notify';
+import { SearchService } from '@services/SearchService';
 import { useAppTheme } from '@theme/ThemeProvider';
 
 export function LargeFileFinderScreen() {
@@ -29,16 +31,21 @@ export function LargeFileFinderScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    const searchId = SearchService.newSearchId();
     setLoading(true);
-    LargeFileService.find(rootPath, LARGE_FILE_THRESHOLDS[thresholdIndex].bytes)
+    LargeFileService.find(rootPath, LARGE_FILE_THRESHOLDS[thresholdIndex].bytes, searchId)
       .then((found) => {
         if (!cancelled) setEntries(found);
+      })
+      .catch((e) => {
+        if (!cancelled) notifyError(e, 'Scan failed');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
+      SearchService.cancel(searchId); // stop walking the whole storage after leaving / switching threshold
     };
   }, [rootPath, thresholdIndex, refreshToken]);
 
@@ -46,7 +53,7 @@ export function LargeFileFinderScreen() {
 
   const handlePress = (entry: FileEntry) => {
     RecentFilesService.record(entry.path, entry.name);
-    openFilePreview(entry.path, entry.category);
+    openFilePreview(entry.path, entry.category, imageSiblings(entries));
   };
 
   return (

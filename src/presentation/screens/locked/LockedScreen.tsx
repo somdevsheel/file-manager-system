@@ -12,12 +12,12 @@ import { useVaultStore } from '@store/vaultStore';
 import { useConfirmDialogStore } from '@store/confirmDialogStore';
 import { EmptyState } from '@components/common/EmptyState';
 import { FileIcon } from '@components/file/FileIcon';
-import { FileEntry, FileCategory, LockedFileEntry } from '@app-types/file';
+import { FileEntry, LockedFileEntry } from '@app-types/file';
 import { categoryForExtension } from '@utils/fileCategory';
 import { formatBytes } from '@utils/format';
 import { useAppTheme } from '@theme/ThemeProvider';
-import { navigate } from '@navigation/navigationRef';
-import { openFilePreview } from '@utils/openFilePreview';
+import { imageSiblings, openFilePreview } from '@utils/openFilePreview';
+import { notify, notifyError } from '@utils/notify';
 import { VaultSetupView } from './VaultSetupView';
 import { VaultUnlockView } from './VaultUnlockView';
 import { VaultRecoveryView } from './VaultRecoveryView';
@@ -63,6 +63,8 @@ export function LockedScreen() {
       const locked = await LockedFilesService.getAll();
       const entries = await Promise.all(locked.map(toFileEntry));
       setItems(locked.map((l, i) => ({ locked: l, entry: entries[i] })));
+    } catch (e) {
+      notifyError(e, "Couldn't load the vault");
     } finally {
       setLoading(false);
     }
@@ -95,17 +97,18 @@ export function LockedScreen() {
     }
     // Deliberately skip RecentFilesService.record() here — recording a vault item's path in
     // "Recent" would leak its existence and location outside the vault, defeating the point.
-    if (entry.category === FileCategory.Image) {
-      const siblingPaths = items.filter((i) => i.entry.category === FileCategory.Image).map((i) => i.entry.path);
-      navigate('ImageViewer', { path: entry.path, siblingPaths });
-      return;
-    }
-    openFilePreview(entry.path, entry.category);
+    openFilePreview(entry.path, entry.category, imageSiblings(items.map((i) => i.entry)));
   };
 
   const handleUnlock = async (item: VaultItem) => {
     setItems((prev) => prev.filter((i) => i.locked.id !== item.locked.id));
-    await LockedFilesService.unlock(item.locked);
+    try {
+      await LockedFilesService.unlock(item.locked);
+      notify(`"${item.entry.name}" restored to its original folder`);
+    } catch (e) {
+      notifyError(e, "Couldn't unlock this item");
+      load(); // undo the optimistic removal
+    }
   };
 
   const handleDeleteForever = (item: VaultItem) => {
@@ -116,7 +119,12 @@ export function LockedScreen() {
       destructive: true,
       onConfirm: async () => {
         setItems((prev) => prev.filter((i) => i.locked.id !== item.locked.id));
-        await LockedFilesService.deleteForever(item.locked);
+        try {
+          await LockedFilesService.deleteForever(item.locked);
+        } catch (e) {
+          load();
+          throw e;
+        }
       },
     });
   };

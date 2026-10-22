@@ -6,6 +6,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@navigation/types';
 import { SeekBar } from '@components/media/SeekBar';
@@ -117,12 +118,18 @@ function TapIcon({ icon, size, onPress, hitSlop = 12 }: TapIconProps) {
 export function VideoPlayerScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'VideoPlayer'>>();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  // Status/nav bars are translucent in portrait, and a landscape cutout can sit on either side —
+  // keep the overlay controls clear of both.
+  const insets = useSafeAreaInsets();
+  const topBarInsets = { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right };
   const { path } = route.params;
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const videoRef = useRef<VideoRef>(null);
 
   const [loading, setLoading] = useState(true);
   const [paused, setPaused] = useState(false);
+  const [ended, setEnded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
   const [position, setPosition] = useState(0);
   const [seeking, setSeeking] = useState(false);
@@ -200,7 +207,17 @@ export function VideoPlayerScreen() {
     scheduleHideOsd();
   };
 
-  const togglePlay = () => setPaused((p) => !p);
+  const togglePlay = () => {
+    if (ended) {
+      // Play after the video finished restarts it instead of doing nothing at the last frame.
+      videoRef.current?.seek(0);
+      setPosition(0);
+      setEnded(false);
+      setPaused(false);
+      return;
+    }
+    setPaused((p) => !p);
+  };
 
   // Forces the rotation (so the button works even if the phone is still held the "wrong" way,
   // or the device has rotation-lock on), then releases the lock shortly after — so this is a
@@ -305,8 +322,15 @@ export function VideoPlayerScreen() {
               }
               onLoad={handleLoad}
               onProgress={handleProgress}
-              onEnd={() => setPaused(true)}
-              onError={() => setLoading(false)}
+              onEnd={() => {
+                setPaused(true);
+                setEnded(true);
+                setControlsVisible(true);
+              }}
+              onError={(e) => {
+                setLoading(false);
+                setLoadError(e?.error?.errorString ?? e?.error?.localizedDescription ?? "This video can't be played");
+              }}
             />
           </Animated.View>
 
@@ -330,17 +354,39 @@ export function VideoPlayerScreen() {
             </View>
           )}
 
-          {!loading && controlsVisible && (
+          {loadError && (
+            <View style={styles.loading} pointerEvents="none">
+              <MaterialCommunityIcons name="video-off-outline" size={48} color="#FFFFFF" />
+              <Text style={styles.errorText}>{loadError}</Text>
+            </View>
+          )}
+
+          {loadError && (
+            <View style={[styles.topBar, topBarInsets]} pointerEvents="box-none">
+              <TapIcon icon="arrow-left" size={24} onPress={handleBack} />
+            </View>
+          )}
+
+          {!loading && !loadError && controlsVisible && (
             <>
-              <View style={styles.topBar} pointerEvents="box-none">
+              <View style={[styles.topBar, topBarInsets]} pointerEvents="box-none">
                 <TapIcon icon="arrow-left" size={24} onPress={handleBack} />
               </View>
 
               <View style={styles.centerPlayWrap} pointerEvents="box-none">
-                <TapIcon icon={paused ? 'play-circle' : 'pause-circle'} size={64} onPress={togglePlay} />
+                <TapIcon icon={ended ? 'replay' : paused ? 'play-circle' : 'pause-circle'} size={64} onPress={togglePlay} />
               </View>
 
-              <View style={styles.bottomBar}>
+              <View
+                style={[
+                  styles.bottomBar,
+                  {
+                    paddingBottom: 10 + insets.bottom,
+                    paddingLeft: 12 + insets.left,
+                    paddingRight: 12 + insets.right,
+                  },
+                ]}
+              >
                 <Text variant="labelSmall" style={styles.timeLabel}>
                   {formatTime(displayPosition)}
                 </Text>
@@ -358,6 +404,7 @@ export function VideoPlayerScreen() {
                     videoRef.current?.seek(r * duration);
                     setPosition(r * duration);
                     setSeeking(false);
+                    if (ended && r < 1) setEnded(false);
                   }}
                 />
                 <Text variant="labelSmall" style={styles.timeLabel}>
@@ -378,7 +425,7 @@ export function VideoPlayerScreen() {
       <Modal visible={settingsVisible} transparent animationType="slide" onRequestClose={() => setSettingsVisible(false)}>
         <Pressable style={styles.backdrop} onPress={() => setSettingsVisible(false)} />
         <View style={styles.settingsSheet}>
-          <ScrollView contentContainerStyle={styles.settingsContent}>
+          <ScrollView contentContainerStyle={[styles.settingsContent, { paddingBottom: 24 + insets.bottom }]}>
             <Text variant="titleMedium" style={styles.settingsTitle}>
               Playback speed
             </Text>
@@ -496,6 +543,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
   timeLabel: { color: '#FFFFFF', minWidth: 36, textAlign: 'center' },
+  errorText: { color: '#FFFFFF', marginTop: 12, paddingHorizontal: 32, textAlign: 'center' },
   osd: {
     position: 'absolute',
     top: '45%',

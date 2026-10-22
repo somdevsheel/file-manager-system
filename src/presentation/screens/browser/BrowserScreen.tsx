@@ -1,11 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { Appbar, FAB, Menu, Text, Portal } from 'react-native-paper';
+import { Appbar, FAB, Menu, Text } from 'react-native-paper';
 import { FlashList } from '@shopify/flash-list';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@navigation/types';
 import { useDirectoryListing } from '@hooks/useDirectoryListing';
+import { useSelectionModeLifecycle } from '@hooks/useSelectionModeLifecycle';
 import { useFileBrowserStore } from '@store/fileBrowserStore';
 import { useSettingsStore } from '@store/settingsStore';
 import { useActionSheetStore } from '@store/actionSheetStore';
@@ -24,7 +25,9 @@ import { RecentFilesService } from '@services/RecentFilesService';
 import { LockedFilesService } from '@services/LockedFilesService';
 import { useVaultStore } from '@store/vaultStore';
 import { navigate } from '@navigation/navigationRef';
-import { openFilePreview } from '@utils/openFilePreview';
+import { imageSiblings, openFilePreview } from '@utils/openFilePreview';
+import { validateFileName } from '@utils/fileName';
+import { notify, notifyError } from '@utils/notify';
 import { useAppTheme } from '@theme/ThemeProvider';
 
 interface Props {
@@ -48,6 +51,7 @@ export function BrowserScreen({ path, title, isRoot }: Props) {
   const { width } = useWindowDimensions();
 
   const { entries, loading, error, reload } = useDirectoryListing(path);
+  useSelectionModeLifecycle();
   const viewMode = useFileBrowserStore((s) => s.viewMode);
   const setViewMode = useFileBrowserStore((s) => s.setViewMode);
   const sortField = useFileBrowserStore((s) => s.sortField);
@@ -73,6 +77,10 @@ export function BrowserScreen({ path, title, isRoot }: Props) {
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
   const [overflowMenuVisible, setOverflowMenuVisible] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isFocused) setFabOpen(false);
+  }, [isFocused]);
   const [pasting, setPasting] = useState(false);
 
   const columnWidth = THUMBNAIL_COLUMN_BASE[thumbnailSize] ?? 130;
@@ -98,7 +106,7 @@ export function BrowserScreen({ path, title, isRoot }: Props) {
       navigation.push('Browser', { path: entry.path, title: entry.name });
     } else {
       RecentFilesService.record(entry.path, entry.name);
-      openFilePreview(entry.path, entry.category);
+      openFilePreview(entry.path, entry.category, imageSiblings(entries));
     }
   };
 
@@ -115,9 +123,9 @@ export function BrowserScreen({ path, title, isRoot }: Props) {
       title: 'New folder',
       label: 'Folder name',
       confirmLabel: 'Create',
-      validate: (v) => (v.trim().length === 0 ? 'Name cannot be empty' : null),
+      validate: validateFileName,
       onConfirm: async (name) => {
-        await FileService.createFolder(FileService.joinPath(path, name));
+        await FileService.createFolder(FileService.joinPath(path, name.trim()));
         triggerRefresh();
       },
     });
@@ -129,9 +137,9 @@ export function BrowserScreen({ path, title, isRoot }: Props) {
       title: 'New file',
       label: 'File name',
       confirmLabel: 'Create',
-      validate: (v) => (v.trim().length === 0 ? 'Name cannot be empty' : null),
+      validate: validateFileName,
       onConfirm: async (name) => {
-        await FileService.createFile(FileService.joinPath(path, name));
+        await FileService.createFile(FileService.joinPath(path, name.trim()));
         triggerRefresh();
       },
     });
@@ -148,6 +156,9 @@ export function BrowserScreen({ path, title, isRoot }: Props) {
         setClipboard(null);
       }
       triggerRefresh();
+    } catch (e) {
+      notifyError(e, 'Paste failed');
+      triggerRefresh(); // part of a multi-item paste may still have gone through
     } finally {
       setPasting(false);
     }
@@ -188,6 +199,20 @@ export function BrowserScreen({ path, title, isRoot }: Props) {
         triggerRefresh();
       },
     });
+  };
+
+  const noneSelected = selectedEntries.length === 0;
+  // Folders can't be attached to a share intent; only offer Share when the selection is all files.
+  const canShare = !noneSelected && selectedEntries.every((e) => !e.isDirectory);
+
+  const handleClip = (mode: 'copy' | 'cut') => {
+    setClipboard({ paths: selectedEntries.map((e) => e.path), mode });
+    exitSelectionMode();
+    notify(`${selectedEntries.length} item(s) ready to ${mode === 'copy' ? 'copy' : 'move'} — open a folder and paste`);
+  };
+
+  const handleBulkShare = () => {
+    ShareService.shareFiles(selectedEntries.map((e) => e.path)).catch((e) => notifyError(e, "Couldn't share"));
   };
 
   const renderItem = ({ item }: { item: FileEntry }) =>
@@ -305,11 +330,11 @@ export function BrowserScreen({ path, title, isRoot }: Props) {
       {selectionMode ? (
         <SelectionBar
           actions={[
-            { icon: 'content-copy', label: 'Copy', onPress: () => { setClipboard({ paths: selectedEntries.map((e) => e.path), mode: 'copy' }); exitSelectionMode(); } },
-            { icon: 'content-cut', label: 'Move', onPress: () => { setClipboard({ paths: selectedEntries.map((e) => e.path), mode: 'cut' }); exitSelectionMode(); } },
-            { icon: 'share-variant-outline', label: 'Share', onPress: () => ShareService.shareFiles(selectedEntries.map((e) => e.path)) },
-            { icon: 'lock-outline', label: 'Lock', onPress: handleBulkLock },
-            { icon: 'trash-can-outline', label: 'Delete', onPress: handleBulkDelete, destructive: true },
+            { icon: 'content-copy', label: 'Copy', onPress: () => handleClip('copy'), disabled: noneSelected },
+            { icon: 'content-cut', label: 'Move', onPress: () => handleClip('cut'), disabled: noneSelected },
+            { icon: 'share-variant-outline', label: 'Share', onPress: handleBulkShare, disabled: !canShare },
+            { icon: 'lock-outline', label: 'Lock', onPress: handleBulkLock, disabled: noneSelected },
+            { icon: 'trash-can-outline', label: 'Delete', onPress: handleBulkDelete, destructive: true, disabled: noneSelected },
           ]}
         />
       ) : clipboard ? (
@@ -320,21 +345,22 @@ export function BrowserScreen({ path, title, isRoot }: Props) {
           <Appbar.Action icon="close" size={20} onPress={() => setClipboard(null)} />
           <Appbar.Action icon="content-paste" size={20} onPress={handlePasteHere} disabled={pasting} />
         </View>
-      ) : isFocused ? (
-        <Portal>
-          <FAB.Group
-            open={fabOpen}
-            visible
-            icon={fabOpen ? 'close' : 'plus'}
-            style={styles.fab}
-            actions={[
-              { icon: 'folder-plus-outline', label: 'New folder', onPress: handleNewFolder },
-              { icon: 'file-plus-outline', label: 'New file', onPress: handleNewFile },
-            ]}
-            onStateChange={({ open }) => setFabOpen(open)}
-          />
-        </Portal>
-      ) : null}
+      ) : (
+        // Rendered inline, not in a <Portal>: portal content lives at the app root, outside this
+        // screen, so when the tab is blurred (and react-native-screens freezes it, skipping the
+        // re-render that would remove it) the button stayed floating over other tabs like Settings.
+        <FAB.Group
+          open={fabOpen}
+          visible={isFocused}
+          icon={fabOpen ? 'close' : 'plus'}
+          style={styles.fab}
+          actions={[
+            { icon: 'folder-plus-outline', label: 'New folder', onPress: handleNewFolder },
+            { icon: 'file-plus-outline', label: 'New file', onPress: handleNewFile },
+          ]}
+          onStateChange={({ open }) => setFabOpen(open)}
+        />
+      )}
     </View>
   );
 }

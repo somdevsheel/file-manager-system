@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Text, ActivityIndicator } from 'react-native-paper';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
@@ -10,6 +10,8 @@ import { FileListItem } from '@components/file/FileListItem';
 import { FileCategory } from '@app-types/file';
 import { CATEGORY_ICONS, CATEGORY_LABELS } from '@utils/fileCategory';
 import { openFilePreview } from '@utils/openFilePreview';
+import { RecentFilesService } from '@services/RecentFilesService';
+import { useActionSheetStore } from '@store/actionSheetStore';
 import { formatBytes } from '@utils/format';
 import { useAppTheme } from '@theme/ThemeProvider';
 
@@ -23,9 +25,20 @@ export function StorageAnalyzerScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     StorageAnalyzerService.analyze(rootPath)
-      .then(setAnalysis)
-      .finally(() => setLoading(false));
+      .then((result) => {
+        if (!cancelled) setAnalysis(result);
+      })
+      .catch(() => {
+        if (!cancelled) setAnalysis(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [rootPath]);
 
   const totalSize = analysis?.categoryBreakdown.reduce((sum, c) => sum + c.size, 0) ?? 0;
@@ -105,7 +118,11 @@ export function StorageAnalyzerScreen() {
                   entry={file}
                   selected={false}
                   selectionMode={false}
-                  onPress={(entry) => openFilePreview(entry.path, entry.category)}
+                  onPress={(entry) => {
+                    RecentFilesService.record(entry.path, entry.name);
+                    openFilePreview(entry.path, entry.category);
+                  }}
+                  onMorePress={(entry) => useActionSheetStore.getState().open(entry)}
                   onLongPress={() => {}}
                 />
               ))}
@@ -140,7 +157,7 @@ function CategoryRow({
   const theme = useAppTheme();
   const accent = theme.custom.categoryAccentColors[category] ?? theme.colors.primary;
   return (
-    <View style={styles.row} onTouchEnd={onPress}>
+    <Pressable style={styles.row} onPress={onPress} android_ripple={{ color: theme.colors.surfaceVariant }}>
       <View style={[styles.iconWrap, { backgroundColor: `${accent}24`, borderRadius: theme.custom.radius.sm }]}>
         <MaterialCommunityIcons name={CATEGORY_ICONS[category]} size={20} color={accent} />
       </View>
@@ -155,14 +172,14 @@ function CategoryRow({
       <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
         {formatBytes(size)}
       </Text>
-    </View>
+    </Pressable>
   );
 }
 
 function FolderRow({ name, size, onPress }: { name: string; size: number; onPress: () => void }) {
   const theme = useAppTheme();
   return (
-    <View style={styles.row} onTouchEnd={onPress}>
+    <Pressable style={styles.row} onPress={onPress} android_ripple={{ color: theme.colors.surfaceVariant }}>
       <View style={[styles.iconWrap, { backgroundColor: theme.colors.elevation.level2, borderRadius: theme.custom.radius.sm }]}>
         <MaterialCommunityIcons name="folder-outline" size={20} color={theme.colors.onSurfaceVariant} />
       </View>
@@ -174,7 +191,7 @@ function FolderRow({ name, size, onPress }: { name: string; size: number; onPres
       <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
         {formatBytes(size)}
       </Text>
-    </View>
+    </Pressable>
   );
 }
 

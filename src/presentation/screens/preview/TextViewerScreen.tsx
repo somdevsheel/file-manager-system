@@ -7,6 +7,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@navigation/types';
 import { ShareService } from '@services/ShareService';
 import { useAppTheme } from '@theme/ThemeProvider';
+import { notifyError } from '@utils/notify';
 
 const MAX_PREVIEW_BYTES = 512 * 1024;
 
@@ -52,7 +53,7 @@ export function TextViewerScreen() {
       <Appbar.Header elevated>
         <Appbar.BackAction onPress={() => navigation.goBack()} />
         <Appbar.Content title={name} />
-        <Appbar.Action icon="share-variant-outline" onPress={() => ShareService.shareFiles([path])} />
+        <Appbar.Action icon="share-variant-outline" onPress={() => ShareService.shareFiles([path]).catch((e) => notifyError(e, "Couldn't share"))} />
       </Appbar.Header>
 
       {loading ? (
@@ -64,7 +65,7 @@ export function TextViewerScreen() {
           <Text style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center', marginBottom: 16 }}>
             This file is too large to preview in-app.
           </Text>
-          <Button mode="contained" onPress={() => ShareService.openFile(path)}>
+          <Button mode="contained" onPress={() => ShareService.openFile(path).catch((e) => notifyError(e, 'No app found to open this file'))}>
             Open with another app
           </Button>
         </View>

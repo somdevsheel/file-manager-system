@@ -10,6 +10,7 @@ import TrackPlayer, {
   useProgress,
 } from 'react-native-track-player';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@navigation/types';
 import { SeekBar } from '@components/media/SeekBar';
@@ -52,6 +53,7 @@ export function AudioPlayerScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'AudioPlayer'>>();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { path, playlist } = route.params;
 
   const originalTracksRef = useRef(playlist && playlist.length > 0 ? playlist : [path]);
@@ -248,7 +250,9 @@ export function AudioPlayerScreen() {
 
       <Modal visible={queueVisible} transparent animationType="slide" onRequestClose={() => setQueueVisible(false)}>
         <Pressable style={styles.backdrop} onPress={() => setQueueVisible(false)} />
-        <View style={[styles.queueSheet, { backgroundColor: theme.colors.elevation.level3 }]}>
+        <View
+          style={[styles.queueSheet, { backgroundColor: theme.colors.elevation.level3, paddingBottom: 24 + insets.bottom }]}
+        >
           <Text variant="titleMedium" style={[styles.queueTitle, { color: theme.colors.onSurface }]}>
             Up next
           </Text>

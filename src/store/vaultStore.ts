@@ -39,7 +39,7 @@ interface VaultState extends PersistedVault {
   setupVault: (pin: string, answers: { questionId: string; answer: string }[]) => void;
   verifyPin: (pin: string) => { ok: boolean; cooldownMs?: number };
   recoveryQuestions: () => SecurityQuestion[];
-  verifyRecoveryAnswers: (answers: { questionId: string; answer: string }[]) => boolean;
+  verifyRecoveryAnswers: (answers: { questionId: string; answer: string }[]) => { ok: boolean; cooldownMs?: number };
   setNewPinAfterRecovery: (pin: string) => void;
 }
 
@@ -70,6 +70,29 @@ function normalizeAnswer(answer: string): string {
   return answer.trim().toLowerCase();
 }
 
+/** Runs a credential check under the shared failed-attempt limit and cooldown. */
+function rateLimited(
+  get: () => PersistedVault,
+  set: (partial: Partial<PersistedVault>) => void,
+  check: () => boolean,
+): { ok: boolean; cooldownMs?: number } {
+  const state = get();
+  const now = Date.now();
+  if (state.lockedUntil > now) {
+    return { ok: false, cooldownMs: state.lockedUntil - now };
+  }
+  if (check()) {
+    set({ failedAttempts: 0, lockedUntil: 0 });
+    persist(get());
+    return { ok: true };
+  }
+  const failedAttempts = state.failedAttempts + 1;
+  const lockedUntil = failedAttempts >= MAX_ATTEMPTS ? now + COOLDOWN_MS : 0;
+  set({ failedAttempts: lockedUntil ? 0 : failedAttempts, lockedUntil });
+  persist(get());
+  return { ok: false, cooldownMs: lockedUntil ? COOLDOWN_MS : undefined };
+}
+
 export const useVaultStore = create<VaultState>()((set, get) => ({
   ...loadPersisted(),
 
@@ -94,22 +117,7 @@ export const useVaultStore = create<VaultState>()((set, get) => ({
 
   verifyPin: (pin) => {
     const state = get();
-    const now = Date.now();
-    if (state.lockedUntil > now) {
-      return { ok: false, cooldownMs: state.lockedUntil - now };
-    }
-    const ok = !!state.pinHash && !!state.pinSalt && hashWithSalt(pin, state.pinSalt) === state.pinHash;
-    if (ok) {
-      set({ failedAttempts: 0, lockedUntil: 0 });
-      persist(get());
-      return { ok: true };
-    }
-    const failedAttempts = state.failedAttempts + 1;
-    const lockedUntil = failedAttempts >= MAX_ATTEMPTS ? now + COOLDOWN_MS : 0;
-    const next = { failedAttempts: lockedUntil ? 0 : failedAttempts, lockedUntil };
-    set(next);
-    persist(get());
-    return { ok: false, cooldownMs: lockedUntil ? COOLDOWN_MS : undefined };
+    return rateLimited(get, set, () => !!state.pinHash && !!state.pinSalt && hashWithSalt(pin, state.pinSalt) === state.pinHash);
   },
 
   recoveryQuestions: () => {
@@ -119,13 +127,17 @@ export const useVaultStore = create<VaultState>()((set, get) => ({
       .filter((q): q is SecurityQuestion => !!q);
   },
 
+  // Shares the PIN's attempt counter/cooldown: security answers are low-entropy, so without a
+  // limit they'd be a trivially brute-forceable way around the PIN.
   verifyRecoveryAnswers: (answers) => {
     const { questions } = get();
-    if (answers.length !== questions.length) return false;
-    return questions.every((stored) => {
-      const submitted = answers.find((a) => a.questionId === stored.questionId);
-      if (!submitted) return false;
-      return hashWithSalt(normalizeAnswer(submitted.answer), stored.answerSalt) === stored.answerHash;
+    return rateLimited(get, set, () => {
+      if (answers.length !== questions.length) return false;
+      return questions.every((stored) => {
+        const submitted = answers.find((a) => a.questionId === stored.questionId);
+        if (!submitted) return false;
+        return hashWithSalt(normalizeAnswer(submitted.answer), stored.answerSalt) === stored.answerHash;
+      });
     });
   },
 
